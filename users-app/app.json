@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "CareCo",
+    "slug": "careco-users",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0A2463",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.careco.users"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A2463"
+      },
+      "package": "com.careco.users"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
+  }
+}
