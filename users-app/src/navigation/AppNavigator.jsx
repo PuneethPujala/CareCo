@@ -30,10 +30,13 @@ import CallerProfileScreen from '../screens/caller/ProfileScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const TabIconWrapper = ({ focused, IconConfig }) => {
+const TabIconWrapper = ({ focused, IconConfig, label }) => {
     return (
-        <View style={[styles.tabContainer, focused && styles.tabContainerFocused]}>
-            <IconConfig color={focused ? colors.accent : '#94A3B8'} size={24} strokeWidth={focused ? 2.5 : 2} />
+        <View style={styles.tabContainer}>
+            <IconConfig color={focused ? colors.accent : '#94A3B8'} size={22} strokeWidth={focused ? 2.5 : 2} />
+            <Text style={[styles.tabLabel, { color: focused ? colors.accent : '#94A3B8', fontWeight: focused ? '700' : '500' }]}>
+                {label}
+            </Text>
         </View>
     );
 };
@@ -132,8 +135,12 @@ const styles = StyleSheet.create({
     loadingText: { color: colors.primary, marginTop: 12, fontSize: 16, fontWeight: '500' },
 
     tabContainer: {
-        width: 48, height: 48, borderRadius: 24,
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
+        top: Platform.OS === 'ios' ? 14 : 10, // Pushes the icon+text group exactly to the middle (offsets the top-anchored default of React Navigation)
     },
-    tabContainerFocused: { backgroundColor: 'rgba(58, 134, 255, 0.12)' },
+    tabLabel: {
+        fontSize: 11,
+        marginTop: 4,
+    },
 });

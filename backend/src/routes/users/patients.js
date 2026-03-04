@@ -8,55 +8,75 @@ const { authenticate } = require('../../middleware/authenticate');
 
 const router = express.Router();
 
-// ─── Auto-Seed Demo Data ────────────────────────────
-async function createDemoPatient(supabaseUid, email, name) {
-    // 1. Create a demo Caller
+// ─── Auto-Seed Basic Profile ────────────────────────────
+async function createBasicPatient(supabaseUid, email, name) {
     const orgId = new mongoose.Types.ObjectId();
-    const caller = await Caller.create({
-        supabase_uid: `demo_caller_${supabaseUid}`,
-        name: 'Priya Sharma',
-        employee_id: `CC-${Math.floor(1000 + Math.random() * 9000)}`,
-        city: 'Hyderabad',
-        organization_id: orgId,
-        languages_spoken: ['Hindi', 'English', 'Telugu'],
-        experience_years: 3,
-        phone: '+919876543210',
-        email: 'priya.sharma@careco.in',
-        performance: { calls_this_week: 12, adherence_rate: 94, escalations: 0 },
-        is_active: true,
-    });
-
-    // 2. Create the Patient
     const patient = await Patient.create({
         supabase_uid: supabaseUid,
         name: name || email.split('@')[0],
         email,
-        city: 'Hyderabad',
+        city: 'Hyderabad', // Mock default city picked during signup
         organization_id: orgId,
-        assigned_caller_id: caller._id,
-        subscription: { status: 'active', plan: 'basic', payment_date: new Date(), next_billing: new Date(Date.now() + 30 * 86400000) },
-        profile_complete: true,
-        conditions: [
-            { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'active' },
-            { name: 'Hypertension', diagnosed_on: new Date('2020-06-10'), status: 'managed' },
-            { name: 'Osteoarthritis', diagnosed_on: new Date('2022-03-01'), status: 'active' },
-        ],
-        medical_history: [
-            { event: 'Knee Replacement Surgery', date: new Date('2023-10-15'), notes: 'Right knee, successful recovery.' },
-            { event: 'Diagnosed with Type 2 Diabetes', date: new Date('2018-01-15'), notes: 'Started on Metformin protocol.' },
-            { event: 'Started BP Medication', date: new Date('2020-06-10'), notes: 'Amlodipine 5mg daily.' },
-        ],
-        allergies: ['Penicillin', 'Peanuts'],
-        medications: [
-            { name: 'Metformin', dosage: '500mg', frequency: 'daily', times: ['morning'], prescribed_by: 'Dr. Reddy', instructions: 'Take with food' },
-            { name: 'Amlodipine', dosage: '5mg', frequency: 'daily', times: ['afternoon'], prescribed_by: 'Dr. Rao', instructions: 'Take after lunch' },
-            { name: 'Atorvastatin', dosage: '10mg', frequency: 'daily', times: ['night'], prescribed_by: 'Dr. Reddy', instructions: 'Take before sleep' },
-        ],
-        emergency_contact: { name: 'Ramesh Kumar', phone: '+919123456789', relation: 'Son' },
+        subscription: { status: 'inactive', plan: 'free' },
+        profile_complete: false,
+        conditions: [],
+        medical_history: [],
+        allergies: [],
+        medications: []
     });
+    console.log(`✅ Auto-seeded basic Free profile for ${email}`);
+    return patient;
+}
+
+// ─── Auto-Seed Demo Health Data & Caller (Post-Subscription) ────────────────────────────
+async function subscribeAndSeedDemoData(patient) {
+    if (patient.subscription?.plan !== 'free') return patient; // Already subscribed
+
+    const orgId = patient.organization_id || new mongoose.Types.ObjectId();
+
+    // 1. Create/Find a demo Caller
+    let caller = await Caller.findOne({ email: 'priya.sharma@careco.in' });
+    if (!caller) {
+        caller = await Caller.create({
+            name: 'Priya Sharma',
+            employee_id: `CC-${Math.floor(1000 + Math.random() * 9000)}`,
+            city: 'Hyderabad',
+            organization_id: orgId,
+            languages_spoken: ['Hindi', 'English', 'Telugu'],
+            experience_years: 3,
+            phone: '+919876543210',
+            email: 'priya.sharma@careco.in',
+            performance: { calls_this_week: 12, adherence_rate: 94, escalations: 0 },
+            is_active: true,
+        });
+    }
+
+    // 2. Update the Patient with Premium Data
+    patient.assigned_caller_id = caller._id;
+    patient.subscription = { status: 'active', plan: 'basic', payment_date: new Date(), next_billing: new Date(Date.now() + 30 * 86400000) };
+    patient.profile_complete = true;
+    patient.conditions = [
+        { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'active' },
+        { name: 'Hypertension', diagnosed_on: new Date('2020-06-10'), status: 'managed' },
+        { name: 'Osteoarthritis', diagnosed_on: new Date('2022-03-01'), status: 'active' },
+    ];
+    patient.medical_history = [
+        { event: 'Knee Replacement Surgery', date: new Date('2023-10-15'), notes: 'Right knee, successful recovery.' },
+        { event: 'Diagnosed with Type 2 Diabetes', date: new Date('2018-01-15'), notes: 'Started on Metformin protocol.' },
+        { event: 'Started BP Medication', date: new Date('2020-06-10'), notes: 'Amlodipine 5mg daily.' },
+    ];
+    patient.allergies = ['Penicillin', 'Peanuts'];
+    patient.medications = [
+        { name: 'Metformin', dosage: '500mg', frequency: 'daily', times: ['morning'], prescribed_by: 'Dr. Reddy', instructions: 'Take with food' },
+        { name: 'Amlodipine', dosage: '5mg', frequency: 'daily', times: ['afternoon'], prescribed_by: 'Dr. Rao', instructions: 'Take after lunch' },
+        { name: 'Atorvastatin', dosage: '10mg', frequency: 'daily', times: ['night'], prescribed_by: 'Dr. Reddy', instructions: 'Take before sleep' },
+    ];
+    patient.emergency_contact = { name: 'Ramesh Kumar', phone: '+919123456789', relation: 'Son' };
+
+    await patient.save();
 
     // Link patient to caller
-    caller.patient_ids = [patient._id];
+    caller.patient_ids = [...(caller.patient_ids || []), patient._id];
     await caller.save();
 
     // 3. Seed Call Logs
@@ -100,21 +120,20 @@ async function createDemoPatient(supabaseUid, email, name) {
         });
     }
 
-    console.log(`✅ Auto-seeded demo data for patient ${email}`);
+    console.log(`✅ Subscribed + auto-seeded demo health data for ${patient.email}`);
     return patient;
 }
 
 /**
  * GET /api/users/patients/me
- * Patient reads their own profile — auto-seeds demo data on first visit
+ * Patient reads their own profile — auto-seeds basic Free profile on first visit
  */
 router.get('/me', authenticate, async (req, res) => {
     try {
         let patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) {
-            // Auto-seed demo data for new users
             try {
-                patient = await createDemoPatient(
+                patient = await createBasicPatient(
                     req.user.id,
                     req.user.email,
                     req.user.user_metadata?.full_name || req.user.user_metadata?.name
@@ -128,6 +147,28 @@ router.get('/me', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Get patient profile error:', error);
         res.status(500).json({ error: 'Failed to get patient profile' });
+    }
+});
+
+/**
+ * POST /api/users/patients/subscribe
+ * Subscribes a Free patient to a paid plan, assigning a Caller and seeding demo health data
+ */
+router.post('/subscribe', authenticate, async (req, res) => {
+    try {
+        const { plan } = req.body;
+        let patient = await Patient.findOne({ supabase_uid: req.user.id });
+
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        if (patient.subscription?.plan !== 'free') return res.status(400).json({ error: 'Already subscribed' });
+
+        // Simulate payment success, then seed data
+        patient = await subscribeAndSeedDemoData(patient);
+
+        res.json({ success: true, patient, message: 'Successfully subscribed and assigned a caller.' });
+    } catch (error) {
+        console.error('Subscription error:', error);
+        res.status(500).json({ error: 'Failed to process subscription' });
     }
 });
 

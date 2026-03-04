@@ -30,6 +30,18 @@ export default function HealthProfileScreen() {
         );
     }
 
+    if (patient?.subscription?.plan === 'free') {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <ShieldCheck size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
+                <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
+                    Your centralized health profile (conditions, allergies, history) is included in the Basic Plan. Upgrade on the Home screen to build your health profile.
+                </Text>
+            </View>
+        );
+    }
+
     const conditions = patient?.conditions || [];
     const allergies = patient?.allergies || [];
     const history = patient?.medical_history || [];

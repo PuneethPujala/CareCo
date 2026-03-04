@@ -69,6 +69,7 @@ export const apiService = {
     // Patient-specific endpoints
     patients: {
         getMe: () => api.get('/users/patients/me'),
+        subscribe: (data) => api.post('/users/patients/subscribe', data),
         updateEmergencyContact: (data) => api.put('/users/patients/me/emergency-contact', data),
         getMyCaller: () => api.get('/users/patients/me/caller'),
         getMyCalls: (params) => api.get('/users/patients/me/calls', { params }),

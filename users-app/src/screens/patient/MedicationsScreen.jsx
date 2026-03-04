@@ -69,6 +69,7 @@ const AnimatedMedCard = ({ med, onToggle }) => {
 };
 
 export default function MedicationsScreen({ navigation }) {
+    const [patient, setPatient] = useState(null);
     const [schedule, setSchedule] = useState({ morning: [], afternoon: [], night: [] });
     const [adherence, setAdherence] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -76,37 +77,42 @@ export default function MedicationsScreen({ navigation }) {
     useEffect(() => {
         (async () => {
             try {
-                const [todayRes, weeklyRes] = await Promise.all([
-                    apiService.medicines.getToday(),
-                    apiService.medicines.getWeeklyAdherence(),
-                ]);
+                const pRes = await apiService.patients.getMe();
+                setPatient(pRes.data.patient);
 
-                const medicines = todayRes.data.log?.medicines || [];
-                const grouped = { morning: [], afternoon: [], night: [] };
-                medicines.forEach(m => {
-                    const slot = m.scheduled_time;
-                    grouped[slot] = grouped[slot] || [];
-                    grouped[slot].push({
-                        id: `${m.medicine_name}_${slot}`,
-                        name: m.medicine_name,
-                        dosage: slot === 'morning' ? '500mg' : slot === 'afternoon' ? '5mg' : '10mg',
-                        instructions: slot === 'morning' ? 'Take with food' : slot === 'afternoon' ? 'Take after lunch' : 'Take before sleep',
-                        time: TIME_LABELS[slot],
-                        type: slot,
-                        taken: m.taken,
-                        accent: ACCENT_MAP[slot],
+                if (pRes.data.patient?.subscription?.plan !== 'free') {
+                    const [todayRes, weeklyRes] = await Promise.all([
+                        apiService.medicines.getToday(),
+                        apiService.medicines.getWeeklyAdherence(),
+                    ]);
+
+                    const medicines = todayRes.data.log?.medicines || [];
+                    const grouped = { morning: [], afternoon: [], night: [] };
+                    medicines.forEach(m => {
+                        const slot = m.scheduled_time;
+                        grouped[slot] = grouped[slot] || [];
+                        grouped[slot].push({
+                            id: `${m.medicine_name}_${slot}`,
+                            name: m.medicine_name,
+                            dosage: slot === 'morning' ? '500mg' : slot === 'afternoon' ? '5mg' : '10mg',
+                            instructions: slot === 'morning' ? 'Take with food' : slot === 'afternoon' ? 'Take after lunch' : 'Take before sleep',
+                            time: TIME_LABELS[slot],
+                            type: slot,
+                            taken: m.taken,
+                            accent: ACCENT_MAP[slot],
+                        });
                     });
-                });
-                setSchedule(grouped);
+                    setSchedule(grouped);
 
-                // Build adherence chart from weekly data
-                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                const weeklyData = (weeklyRes.data.adherence || []).map(d => ({
-                    day: days[new Date(d.date).getDay()],
-                    p: d.rate,
-                    isToday: new Date(d.date).toDateString() === new Date().toDateString(),
-                }));
-                setAdherence(weeklyData);
+                    // Build adherence chart from weekly data
+                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    const weeklyData = (weeklyRes.data.adherence || []).map(d => ({
+                        day: days[new Date(d.date).getDay()],
+                        p: d.rate,
+                        isToday: new Date(d.date).toDateString() === new Date().toDateString(),
+                    }));
+                    setAdherence(weeklyData);
+                }
             } catch (err) {
                 console.warn('Failed to load medications:', err.message);
             } finally {
@@ -122,6 +128,18 @@ export default function MedicationsScreen({ navigation }) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+        );
+    }
+
+    if (patient?.subscription?.plan === 'free') {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <Pill size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
+                <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
+                    Medication tracking and adherence insights are included in the Basic Plan. Upgrade on the Home screen to manage your daily schedule.
+                </Text>
             </View>
         );
     }

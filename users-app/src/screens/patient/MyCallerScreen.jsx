@@ -13,6 +13,7 @@ const STATUS_CONFIG = {
 };
 
 export default function MyCallerScreen({ navigation }) {
+    const [patient, setPatient] = useState(null);
     const [caller, setCaller] = useState(null);
     const [calls, setCalls] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -21,12 +22,17 @@ export default function MyCallerScreen({ navigation }) {
     useEffect(() => {
         (async () => {
             try {
-                const [callerRes, callsRes] = await Promise.all([
-                    apiService.patients.getMyCaller(),
-                    apiService.patients.getMyCalls(),
-                ]);
-                setCaller(callerRes.data.caller);
-                setCalls(callsRes.data.calls || []);
+                const pRes = await apiService.patients.getMe();
+                setPatient(pRes.data.patient);
+
+                if (pRes.data.patient?.subscription?.plan !== 'free') {
+                    const [callerRes, callsRes] = await Promise.all([
+                        apiService.patients.getMyCaller(),
+                        apiService.patients.getMyCalls(),
+                    ]);
+                    setCaller(callerRes.data.caller);
+                    setCalls(callsRes.data.calls || []);
+                }
             } catch (err) {
                 console.warn('Failed to load caller data:', err.message);
             } finally {
@@ -55,6 +61,18 @@ export default function MyCallerScreen({ navigation }) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+        );
+    }
+
+    if (patient?.subscription?.plan === 'free') {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+                <ShieldCheck size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
+                <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
+                    A dedicated care team caller is included in the Basic Plan. Upgrade on the Home screen to get matched with a caller from your city.
+                </Text>
             </View>
         );
     }
