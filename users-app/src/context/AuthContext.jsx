@@ -15,9 +15,11 @@ export function AuthProvider({ children }) {
     const [initializing, setInitializing] = useState(true);
     const [isOnboarding, setIsOnboarding] = useState(false);
 
-    const skipNextFetchRef = useRef(false);
+    const skipFetchCountRef = useRef(0);       // counter: how many auth events to skip
+    const isOnboardingRef = useRef(false);      // ref mirror of isOnboarding for use inside listeners
     const profileRef = useRef(profile);
     useEffect(() => { profileRef.current = profile; }, [profile]);
+    useEffect(() => { isOnboardingRef.current = isOnboarding; }, [isOnboarding]);
 
     // Initialization — check existing session
     useEffect(() => {
@@ -52,10 +54,14 @@ export function AuthProvider({ children }) {
                 setProfile(null);
                 return;
             }
+
+            // During onboarding, signUp() manages state directly — ignore all auth events
+            if (isOnboardingRef.current) return;
+
             if (session?.user) {
                 setUser(session.user);
-                if (skipNextFetchRef.current) {
-                    skipNextFetchRef.current = false;
+                if (skipFetchCountRef.current > 0) {
+                    skipFetchCountRef.current--;
                     return;
                 }
                 if (!profileRef.current) {
@@ -77,7 +83,7 @@ export function AuthProvider({ children }) {
             const { session, profile: profileData } = response.data;
 
             setProfile(profileData);
-            skipNextFetchRef.current = true;
+            skipFetchCountRef.current = 2; // setSession can fire up to 2 events
 
             await supabase.auth.setSession({
                 access_token: session.access_token,
@@ -97,8 +103,9 @@ export function AuthProvider({ children }) {
     const signUp = useCallback(async (email, password, fullName, role, additionalData = {}) => {
         setLoading(true);
         setIsOnboarding(true);
+        isOnboardingRef.current = true; // set ref immediately (don't wait for useEffect)
         try {
-            // 1. Register with backend (creates Supabase Admin user + MongoDB Profile)
+            // 1. Register with backend (creates Supabase Admin user + MongoDB Profile + Patient)
             const registerRes = await apiService.auth.register({
                 email, password, fullName, role, ...additionalData
             });
@@ -109,12 +116,15 @@ export function AuthProvider({ children }) {
 
             setUser(session.user);
             setProfile(profileData);
-            skipNextFetchRef.current = true;
 
-            await supabase.auth.setSession({
+            const { error: sessionError } = await supabase.auth.setSession({
                 access_token: session.access_token,
                 refresh_token: session.refresh_token,
             });
+
+            if (sessionError) {
+                console.error("SetSession failed:", sessionError);
+            }
 
             return {
                 user: session.user,
@@ -134,6 +144,8 @@ export function AuthProvider({ children }) {
         try { await auth.signOut(); } catch { }
         setUser(null);
         setProfile(null);
+        setIsOnboarding(false);
+        isOnboardingRef.current = false;
     }, []);
 
     // Google Sign In
@@ -147,7 +159,7 @@ export function AuthProvider({ children }) {
             if (error) throw error;
 
             setUser(data.user);
-            skipNextFetchRef.current = true;
+            skipFetchCountRef.current = 2;
 
             // Try to fetch existing profile, or create one
             try {
@@ -158,6 +170,7 @@ export function AuthProvider({ children }) {
                 // Return info so the screen can route to sign-up step 2
                 setLoading(false);
                 setIsOnboarding(true);
+                isOnboardingRef.current = true;
                 return { isNewUser: true, user: data.user };
             }
 
@@ -177,6 +190,7 @@ export function AuthProvider({ children }) {
 
     const completeSignUp = useCallback(() => {
         setIsOnboarding(false);
+        isOnboardingRef.current = false;
     }, []);
 
     const isAuthenticated = !!user && !!profile && !isOnboarding;

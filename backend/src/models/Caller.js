@@ -77,6 +77,5 @@ CallerSchema.virtual('patient_count').get(function () {
 
 // Indexes
 CallerSchema.index({ organization_id: 1, is_active: 1 });
-CallerSchema.index({ manager_id: 1 });
 
 module.exports = mongoose.model('Caller', CallerSchema);

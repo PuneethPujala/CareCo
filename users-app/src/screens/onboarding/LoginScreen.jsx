@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, TextInput, Pressable, Platform,
-    KeyboardAvoidingView, ScrollView, Animated, ActivityIndicator,
+    KeyboardAvoidingView, ScrollView, Animated, ActivityIndicator, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, Eye, EyeOff, HeartPulse, AlertCircle } from 'lucide-react-native';
@@ -13,10 +13,11 @@ import * as WebBrowser from 'expo-web-browser';
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
-    const { signIn, signInWithGoogle } = useAuth();
+    const { signIn, signInWithGoogle, resetPassword } = useAuth();
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        prompt: 'select_account',
     });
 
     const [email, setEmail] = useState('');
@@ -72,12 +73,31 @@ export default function LoginScreen({ navigation }) {
         }
         setLoading(true);
         setErrorText('');
-        const { error } = await signIn(email, password, 'patient');
-        if (error) {
-            setErrorText(error);
+        try {
+            await signIn(email, password, 'patient');
+        } catch (error) {
+            setErrorText(error?.message || 'Login failed. Please try again.');
             setPassword('');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
+    };
+
+    const handleForgotPassword = async () => {
+        const resetEmail = email.trim();
+        if (!resetEmail || !/\S+@\S+\.\S+/.test(resetEmail)) {
+            Alert.alert('Enter Your Email', 'Please enter a valid email address in the email field above, then tap Forgot Password again.');
+            return;
+        }
+        try {
+            setLoading(true);
+            await resetPassword(resetEmail);
+            Alert.alert('Check Your Email', `We've sent a password reset link to ${resetEmail}. Please check your inbox.`);
+        } catch (error) {
+            Alert.alert('Reset Failed', error?.message || 'Failed to send reset email. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -165,7 +185,7 @@ export default function LoginScreen({ navigation }) {
                     </View>
 
                     {/* Forgot Password */}
-                    <Pressable style={styles.forgotRow}>
+                    <Pressable style={styles.forgotRow} onPress={handleForgotPassword}>
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                     </Pressable>
 

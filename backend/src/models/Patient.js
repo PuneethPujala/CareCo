@@ -102,6 +102,10 @@ const PatientSchema = new mongoose.Schema(
             phone: String,
             relation: String,
         },
+        expireAt: {
+            type: Date,
+            default: () => new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        },
     },
     {
         timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
@@ -113,5 +117,6 @@ const PatientSchema = new mongoose.Schema(
 // Indexes
 PatientSchema.index({ organization_id: 1, assigned_caller_id: 1 });
 PatientSchema.index({ 'subscription.status': 1 });
+PatientSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
 
 module.exports = mongoose.model('Patient', PatientSchema);

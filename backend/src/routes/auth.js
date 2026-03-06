@@ -1,7 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
 const { createClient } = require('@supabase/supabase-js');
 const Profile = require('../models/Profile');
+const Patient = require('../models/Patient');
 const Organization = require('../models/Organization');
 const AuditLog = require('../models/AuditLog');
 const { authenticate } = require('../middleware/authenticate');
@@ -146,6 +148,17 @@ router.post('/register', async (req, res) => {
     });
 
     await profile.save();
+
+    if (role === 'patient') {
+      const patient = new Patient({
+        supabase_uid: finalUid,
+        email,
+        name: fullName || email.split('@')[0],
+        city: req.body.city || 'Unknown',
+        organization_id: organizationId || new mongoose.Types.ObjectId(),
+      });
+      await patient.save();
+    }
 
     // Update organization user counts if applicable
     if (organizationId) {

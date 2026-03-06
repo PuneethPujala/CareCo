@@ -180,6 +180,7 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        prompt: 'select_account',
     });
 
     // Animations

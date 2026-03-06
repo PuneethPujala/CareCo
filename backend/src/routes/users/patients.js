@@ -56,6 +56,7 @@ async function subscribeAndSeedDemoData(patient) {
     patient.assigned_caller_id = caller._id;
     patient.subscription = { status: 'active', plan: 'basic', payment_date: new Date(), next_billing: new Date(Date.now() + 30 * 86400000) };
     patient.profile_complete = true;
+    patient.expireAt = undefined; // Remove TTL so account is kept permanently
     patient.conditions = [
         { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'active' },
         { name: 'Hypertension', diagnosed_on: new Date('2020-06-10'), status: 'managed' },

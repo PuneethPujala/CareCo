@@ -72,8 +72,8 @@ export default function PatientHomeScreen({ navigation }) {
             const pData = pRes.data.patient;
             setPatient(pData);
 
-            // If user is on free plan, redirect to subscription flow
-            if (pData?.subscription?.plan === 'free') {
+            // If user hasn't paid yet, redirect to subscription flow
+            if (pData?.subscription?.status !== 'active') {
                 navigation.replace('SubscribePlans');
                 return;
             }
