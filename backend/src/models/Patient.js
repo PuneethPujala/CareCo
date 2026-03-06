@@ -58,6 +58,11 @@ const PatientSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        paid: {
+            type: Number,
+            default: 0,
+            enum: [0, 1]
+        },
         conditions: [
             {
                 name: { type: String, required: true },

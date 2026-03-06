@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Shield, Bell, Settings, LogOut, ChevronRight, UserRound, Phone, X, Save } from 'lucide-react-native';
 import { colors } from '../../theme';
@@ -10,11 +10,29 @@ export default function PatientProfileScreen({ navigation }) {
     const { signOut, displayName, userEmail } = useAuth();
     const [patient, setPatient] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Modals
     const [ecModalVisible, setEcModalVisible] = useState(false);
+    const [accountModalVisible, setAccountModalVisible] = useState(false);
+    const [editAccountModalVisible, setEditAccountModalVisible] = useState(false);
+    const [cpModalVisible, setCpModalVisible] = useState(false);
+
+    // EC Form
     const [ecName, setEcName] = useState('');
     const [ecPhone, setEcPhone] = useState('');
     const [ecRelation, setEcRelation] = useState('');
     const [saving, setSaving] = useState(false);
+
+    // Edit Profile Form
+    const [editName, setEditName] = useState('');
+    const [editCity, setEditCity] = useState('');
+    const [savingAccount, setSavingAccount] = useState(false);
+
+    // Change Password Form
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [savingCp, setSavingCp] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -26,6 +44,8 @@ export default function PatientProfileScreen({ navigation }) {
                     setEcPhone(data.patient.emergency_contact.phone || '');
                     setEcRelation(data.patient.emergency_contact.relation || '');
                 }
+                setEditName(data.patient?.name || displayName || '');
+                setEditCity(data.patient?.city || '');
             } catch (err) {
                 console.warn('Failed to load profile:', err.message);
             } finally {
@@ -52,6 +72,42 @@ export default function PatientProfileScreen({ navigation }) {
     const planColor = patient?.subscription?.plan === 'explore' ? '#9333EA' : '#16A34A';
     const planBg = patient?.subscription?.plan === 'explore' ? '#F3E8FF' : '#DCFCE7';
 
+    const handleSaveAccount = async () => {
+        if (!editName.trim()) { Alert.alert('Error', 'Name cannot be empty.'); return; }
+        setSavingAccount(true);
+        try {
+            await apiService.patients.updateMe({ name: editName, city: editCity });
+            setPatient(prev => ({ ...prev, city: editCity, name: editName }));
+            setEditAccountModalVisible(false);
+            Alert.alert('Success', 'Profile updated successfully.');
+        } catch (err) {
+            Alert.alert('Error', 'Failed to update profile.');
+        } finally {
+            setSavingAccount(false);
+        }
+    };
+
+    const handleChangePassword = async () => {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            Alert.alert('Error', 'Please fill all password fields.'); return;
+        }
+        if (newPassword !== confirmPassword) {
+            Alert.alert('Error', 'New passwords do not match.'); return;
+        }
+        setSavingCp(true);
+        try {
+            await apiService.auth.changePassword({ currentPassword, newPassword });
+            setCpModalVisible(false);
+            setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+            Alert.alert('Success', 'Password changed successfully. Please log back in.');
+            signOut();
+        } catch (err) {
+            Alert.alert('Error', err?.message || 'Failed to change password. Validate requirements.');
+        } finally {
+            setSavingCp(false);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Gradient Header */}
@@ -68,9 +124,9 @@ export default function PatientProfileScreen({ navigation }) {
                         <Text style={styles.avatarTxt}>{displayName?.charAt(0) || 'U'}</Text>
                     </View>
                     <View style={styles.infoTextGroup}>
-                        <Text style={styles.nameText}>{displayName || 'User'}</Text>
+                        <Text style={styles.nameText}>{patient?.name || displayName || 'User'}</Text>
                         <Text style={styles.emailText}>{userEmail || 'patient@careco.com'}</Text>
-                        {patient?.city && <Text style={styles.cityText}>{patient.city}</Text>}
+                        {patient?.city ? <Text style={styles.cityText}>{patient.city}</Text> : null}
                         <View style={[styles.planBadge, { backgroundColor: planBg }]}>
                             <Text style={[styles.planBadgeText, { color: planColor }]}>{planLabel}</Text>
                         </View>
@@ -79,19 +135,26 @@ export default function PatientProfileScreen({ navigation }) {
 
                 <Text style={styles.sectionHeader}>SETTINGS</Text>
                 <View style={styles.settingsGroup}>
-                    <Pressable style={styles.settingRow} onPress={() => Alert.alert('Account Details', `Email: ${userEmail}\nCity: ${patient?.city || 'N/A'}\nPlan: ${planLabel}\nMember since: ${patient?.created_at ? new Date(patient.created_at).toLocaleDateString() : 'N/A'}`)}>
+                    <Pressable style={styles.settingRow} onPress={() => setAccountModalVisible(true)}>
                         <View style={styles.settingIconBox}><Settings size={20} color="#64748B" /></View>
                         <Text style={styles.settingLabel}>Account Details</Text>
                         <ChevronRight size={20} color="#CBD5E1" />
                     </Pressable>
-                    <Pressable style={styles.settingRow} onPress={() => Alert.alert('Notifications', 'Push notifications are enabled. You will receive reminders for medications and upcoming calls.')}>
-                        <View style={styles.settingIconBox}><Bell size={20} color="#64748B" /></View>
-                        <Text style={styles.settingLabel}>Notification Preferences</Text>
+                    <Pressable style={styles.settingRow} onPress={() => setCpModalVisible(true)}>
+                        <View style={styles.settingIconBox}><Shield size={20} color="#64748B" /></View>
+                        <Text style={styles.settingLabel}>Change Password</Text>
                         <ChevronRight size={20} color="#CBD5E1" />
                     </Pressable>
-                    <Pressable style={styles.settingRow} onPress={() => Alert.alert('Privacy & Security', 'Your data is encrypted and stored securely. Only your assigned care team can access your health records.')}>
+                    <Pressable style={styles.settingRow} onPress={async () => {
+                        try {
+                            await apiService.auth.resetPassword(userEmail);
+                            Alert.alert('Email Sent', 'A password reset link has been sent to your email.');
+                        } catch (err) {
+                            Alert.alert('Error', 'Failed to send password reset email.');
+                        }
+                    }}>
                         <View style={styles.settingIconBox}><Shield size={20} color="#64748B" /></View>
-                        <Text style={styles.settingLabel}>Privacy & Security</Text>
+                        <Text style={styles.settingLabel}>Forgot Password? (Email)</Text>
                         <ChevronRight size={20} color="#CBD5E1" />
                     </Pressable>
                     <Pressable style={styles.settingRow} onPress={() => setEcModalVisible(true)}>
@@ -138,6 +201,93 @@ export default function PatientProfileScreen({ navigation }) {
                         <Pressable style={styles.saveBtn} onPress={handleSaveEC} disabled={saving}>
                             <Save size={18} color="#FFFFFF" />
                             <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Contact'}</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Account Details Modal */}
+            <Modal visible={accountModalVisible} animationType="slide" transparent={true} onRequestClose={() => setAccountModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Account Details</Text>
+                            <Pressable onPress={() => setAccountModalVisible(false)} hitSlop={10}><X size={24} color="#64748B" /></Pressable>
+                        </View>
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Full Name</Text>
+                            <Text style={styles.detailValue}>{patient?.name || displayName}</Text>
+                        </View>
+                        <View style={styles.line} />
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Email Address</Text>
+                            <Text style={styles.detailValue}>{userEmail}</Text>
+                        </View>
+                        <View style={styles.line} />
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>City</Text>
+                            <Text style={styles.detailValue}>{patient?.city || 'Not Provided'}</Text>
+                        </View>
+                        <View style={styles.line} />
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Current Plan</Text>
+                            <Text style={[styles.detailValue, { color: planColor }]}>{planLabel}</Text>
+                        </View>
+                        <View style={styles.line} />
+                        <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Member Since</Text>
+                            <Text style={styles.detailValue}>{patient?.created_at ? new Date(patient.created_at).toLocaleDateString() : 'N/A'}</Text>
+                        </View>
+                        <Pressable style={[styles.saveBtn, { backgroundColor: '#F1F5F9', marginTop: 24 }]} onPress={() => { setAccountModalVisible(false); setEditAccountModalVisible(true); }}>
+                            <Text style={[styles.saveBtnText, { color: '#475569' }]}>Edit Information</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Edit Account Modal */}
+            <Modal visible={editAccountModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEditAccountModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Edit Profile</Text>
+                            <Pressable onPress={() => setEditAccountModalVisible(false)} hitSlop={10}><X size={24} color="#64748B" /></Pressable>
+                        </View>
+                        <Text style={styles.inputLabel}>Full Name</Text>
+                        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Your name" placeholderTextColor="#94A3B8" />
+
+                        <Text style={styles.inputLabel}>City</Text>
+                        <TextInput style={styles.input} value={editCity} onChangeText={setEditCity} placeholder="e.g. Hyderabad" placeholderTextColor="#94A3B8" />
+
+                        <Pressable style={styles.saveBtn} onPress={handleSaveAccount} disabled={savingAccount}>
+                            <Save size={18} color="#FFFFFF" />
+                            <Text style={styles.saveBtnText}>{savingAccount ? 'Saving...' : 'Save Profile'}</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Change Password Modal */}
+            <Modal visible={cpModalVisible} animationType="slide" transparent={true} onRequestClose={() => setCpModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Change Password</Text>
+                            <Pressable onPress={() => setCpModalVisible(false)} hitSlop={10}><X size={24} color="#64748B" /></Pressable>
+                        </View>
+
+                        <Text style={styles.inputLabel}>Current Password</Text>
+                        <TextInput style={styles.input} value={currentPassword} onChangeText={setCurrentPassword} placeholder="Enter your current password" placeholderTextColor="#94A3B8" secureTextEntry />
+
+                        <Text style={styles.inputLabel}>New Password</Text>
+                        <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} placeholder="Enter your new password" placeholderTextColor="#94A3B8" secureTextEntry />
+
+                        <Text style={styles.inputLabel}>Confirm New Password</Text>
+                        <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Confirm your new password" placeholderTextColor="#94A3B8" secureTextEntry />
+
+                        <Pressable style={styles.saveBtn} onPress={handleChangePassword} disabled={savingCp}>
+                            <Save size={18} color="#FFFFFF" />
+                            <Text style={styles.saveBtnText}>{savingCp ? 'Changing...' : 'Change Password'}</Text>
                         </Pressable>
                     </View>
                 </View>
@@ -191,4 +341,14 @@ const styles = StyleSheet.create({
     input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, color: '#1A202C' },
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, marginTop: 24 },
     saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+
+    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
+    detailLabel: { fontSize: 14, color: '#64748B' },
+    detailValue: { fontSize: 14, fontWeight: '600', color: '#1A202C' },
+    line: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 4 },
+    toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+    toggleTitle: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
+    toggleDesc: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
+    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
+    actionRowText: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
 });

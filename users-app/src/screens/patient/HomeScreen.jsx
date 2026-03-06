@@ -64,7 +64,6 @@ export default function PatientHomeScreen({ navigation }) {
     const [patient, setPatient] = useState(null);
     const [meds, setMeds] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [subscribing, setSubscribing] = useState(false);
 
     const fetchData = useCallback(async () => {
         try {
@@ -73,19 +72,23 @@ export default function PatientHomeScreen({ navigation }) {
             const pData = pRes.data.patient;
             setPatient(pData);
 
-            if (pData?.subscription?.plan !== 'free') {
-                const { data } = await apiService.medicines.getToday();
-                const medicines = (data.log?.medicines || []).map((m) => ({
-                    id: `${m.medicine_name}_${m.scheduled_time}`,
-                    name: m.medicine_name,
-                    dosage: m.scheduled_time === 'morning' ? '500mg' : m.scheduled_time === 'afternoon' ? '5mg' : '10mg',
-                    time: TIME_LABELS[m.scheduled_time] || m.scheduled_time,
-                    type: m.scheduled_time,
-                    taken: m.taken,
-                    accent: ACCENT_MAP[m.scheduled_time] || colors.accent,
-                }));
-                setMeds(medicines);
+            // If user is on free plan, redirect to subscription flow
+            if (pData?.subscription?.plan === 'free') {
+                navigation.replace('SubscribePlans');
+                return;
             }
+
+            const { data } = await apiService.medicines.getToday();
+            const medicines = (data.log?.medicines || []).map((m) => ({
+                id: `${m.medicine_name}_${m.scheduled_time}`,
+                name: m.medicine_name,
+                dosage: m.scheduled_time === 'morning' ? '500mg' : m.scheduled_time === 'afternoon' ? '5mg' : '10mg',
+                time: TIME_LABELS[m.scheduled_time] || m.scheduled_time,
+                type: m.scheduled_time,
+                taken: m.taken,
+                accent: ACCENT_MAP[m.scheduled_time] || colors.accent,
+            }));
+            setMeds(medicines);
         } catch (err) {
             console.warn('Failed to fetch dashboard data:', err.message);
         } finally {
@@ -94,21 +97,6 @@ export default function PatientHomeScreen({ navigation }) {
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-
-    const handleSubscribe = async () => {
-        setSubscribing(true);
-        try {
-            // Simulate payment delay
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await apiService.patients.subscribe({ plan: 'basic' });
-            // Re-fetch everything to show the newly assigned caller and health data
-            await fetchData();
-        } catch (err) {
-            console.warn('Subscription failed:', err.message);
-        } finally {
-            setSubscribing(false);
-        }
-    };
 
     const toggleMed = async (med) => {
         const newTaken = !med.taken;
@@ -123,7 +111,6 @@ export default function PatientHomeScreen({ navigation }) {
 
     const takenCount = meds.filter(m => m.taken).length;
     const dateStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
-    const isFree = patient?.subscription?.plan === 'free';
 
     if (loading) {
         return (
@@ -157,97 +144,64 @@ export default function PatientHomeScreen({ navigation }) {
                         </View>
                     </View>
 
-                    {!isFree && (
-                        <View style={styles.headerStatsRow}>
-                            <View style={styles.statMiniCard}><Pill size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>{takenCount}/{meds.length}</Text><Text style={styles.statMiniLabel}>Meds Today</Text></View>
-                            <View style={styles.statMiniCard}><PhoneCall size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>2</Text><Text style={styles.statMiniLabel}>Calls Left</Text></View>
-                            <View style={styles.statMiniCard}><CalendarCheck size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>45</Text><Text style={styles.statMiniLabel}>Days Active</Text></View>
-                        </View>
-                    )}
+                    <View style={styles.headerStatsRow}>
+                        <View style={styles.statMiniCard}><Pill size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>{takenCount}/{meds.length}</Text><Text style={styles.statMiniLabel}>Meds Today</Text></View>
+                        <View style={styles.statMiniCard}><PhoneCall size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>2</Text><Text style={styles.statMiniLabel}>Calls Left</Text></View>
+                        <View style={styles.statMiniCard}><CalendarCheck size={18} color={colors.accent} strokeWidth={2.5} /><Text style={styles.statMiniVal}>45</Text><Text style={styles.statMiniLabel}>Days Active</Text></View>
+                    </View>
                 </LinearGradient>
             </View>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
 
-                {isFree ? (
-                    <View style={styles.upgradeSection}>
-                        <LinearGradient colors={['#F8FAFC', '#F1F5F9']} style={styles.upgradeCard}>
-                            <View style={styles.upgradeIconRow}>
-                                <View style={styles.upgradeIconBg}><Sparkles size={24} color={colors.accent} /></View>
-                            </View>
-                            <Text style={styles.upgradeTitle}>Unlock CareCo Premium</Text>
-                            <Text style={styles.upgradeDesc}>Get a dedicated care team caller, daily health check-ins, medication tracking, and emergency support.</Text>
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>TODAY'S MEDICATIONS</Text>
+                    {meds.map(med => <MedicationCard key={med.id} med={med} onCheck={toggleMed} />)}
+                    {meds.length === 0 && <Text style={{ color: '#94A3B8', fontStyle: 'italic', marginTop: 10 }}>No medications scheduled for today.</Text>}
+                </View>
 
-                            <View style={styles.priceRow}>
-                                <Text style={styles.priceSymbol}>₹</Text>
-                                <Text style={styles.priceAmount}>500</Text>
-                                <Text style={styles.pricePeriod}>/month</Text>
-                            </View>
+                <View style={styles.section}>
+                    <LinearGradient colors={['#EEF4FF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.tipCard}>
+                        <View style={styles.tipTitleRow}>
+                            <View style={styles.tipIconBox}><Sparkles size={16} color={colors.accent} /></View>
+                            <Text style={styles.tipLabel}>TODAY'S TIP</Text>
+                        </View>
+                        <Text style={styles.tipBodyText}>Stay hydrated! Drinking 8 glasses of water daily helps manage blood pressure and significantly improves kidney function.</Text>
+                    </LinearGradient>
+                </View>
 
-                            <Pressable style={styles.subscribeBtn} onPress={handleSubscribe} disabled={subscribing}>
-                                {subscribing ? (
-                                    <>
-                                        <ActivityIndicator size="small" color="#FFFFFF" />
-                                        <Text style={styles.subscribeBtnText}>Processing Payment...</Text>
-                                    </>
-                                ) : (
-                                    <Text style={styles.subscribeBtnText}>Subscribe Now</Text>
-                                )}
-                            </Pressable>
-                        </LinearGradient>
+                <View style={styles.section}>
+                    <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
+                    <View style={styles.quickGrid}>
+                        <Pressable style={styles.quickCard} onPress={() => navigation.navigate('MyCaller')}>
+                            <View style={styles.quickContent}>
+                                <View style={[styles.quickIconBox, { backgroundColor: '#E0F2FE' }]}><PhoneIncoming size={20} color="#0284C7" /></View>
+                                <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Call History</Text><Text style={styles.quickCardSub}>Last call: Today</Text></View>
+                            </View><ChevronRight size={18} color="#CBD5E1" />
+                        </Pressable>
+
+                        <Pressable style={styles.quickCard} onPress={() => navigation.navigate('Medications')}>
+                            <View style={styles.quickContent}>
+                                <View style={[styles.quickIconBox, { backgroundColor: '#DCFCE7' }]}><TrendingUp size={20} color="#16A34A" /></View>
+                                <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Adherence</Text><Text style={styles.quickCardSub}>94% This Week</Text></View>
+                            </View><ChevronRight size={18} color="#CBD5E1" />
+                        </Pressable>
+
+                        <Pressable style={styles.quickCard} onPress={() => navigation.navigate('HealthProfile')}>
+                            <View style={styles.quickContent}>
+                                <View style={[styles.quickIconBox, { backgroundColor: '#F3E8FF' }]}><Activity size={20} color="#9333EA" /></View>
+                                <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Health Profile</Text><Text style={styles.quickCardSub}>Updated Oct 24</Text></View>
+                            </View><ChevronRight size={18} color="#CBD5E1" />
+                        </Pressable>
+
+                        <Pressable style={styles.quickCard}>
+                            <View style={styles.quickContent}>
+                                <View style={[styles.quickIconBox, { backgroundColor: '#FEF3C7' }]}><CalendarDays size={20} color="#D97706" /></View>
+                                <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Schedule</Text><Text style={styles.quickCardSub}>Next Appt: Friday</Text></View>
+                            </View><ChevronRight size={18} color="#CBD5E1" />
+                        </Pressable>
                     </View>
-                ) : (
-                    <>
-                        <View style={styles.section}>
-                            <Text style={styles.sectionHeader}>TODAY'S MEDICATIONS</Text>
-                            {meds.map(med => <MedicationCard key={med.id} med={med} onCheck={toggleMed} />)}
-                            {meds.length === 0 && <Text style={{ color: '#94A3B8', fontStyle: 'italic', marginTop: 10 }}>No medications scheduled for today.</Text>}
-                        </View>
-
-                        <View style={styles.section}>
-                            <LinearGradient colors={['#EEF4FF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.tipCard}>
-                                <View style={styles.tipTitleRow}>
-                                    <View style={styles.tipIconBox}><Sparkles size={16} color={colors.accent} /></View>
-                                    <Text style={styles.tipLabel}>TODAY'S TIP</Text>
-                                </View>
-                                <Text style={styles.tipBodyText}>Stay hydrated! Drinking 8 glasses of water daily helps manage blood pressure and significantly improves kidney function.</Text>
-                            </LinearGradient>
-                        </View>
-
-                        <View style={styles.section}>
-                            <Text style={styles.sectionHeader}>QUICK ACCESS</Text>
-                            <View style={styles.quickGrid}>
-                                <Pressable style={styles.quickCard} onPress={() => navigation.navigate('MyCaller')}>
-                                    <View style={styles.quickContent}>
-                                        <View style={[styles.quickIconBox, { backgroundColor: '#E0F2FE' }]}><PhoneIncoming size={20} color="#0284C7" /></View>
-                                        <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Call History</Text><Text style={styles.quickCardSub}>Last call: Today</Text></View>
-                                    </View><ChevronRight size={18} color="#CBD5E1" />
-                                </Pressable>
-
-                                <Pressable style={styles.quickCard} onPress={() => navigation.navigate('Medications')}>
-                                    <View style={styles.quickContent}>
-                                        <View style={[styles.quickIconBox, { backgroundColor: '#DCFCE7' }]}><TrendingUp size={20} color="#16A34A" /></View>
-                                        <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Adherence</Text><Text style={styles.quickCardSub}>94% This Week</Text></View>
-                                    </View><ChevronRight size={18} color="#CBD5E1" />
-                                </Pressable>
-
-                                <Pressable style={styles.quickCard} onPress={() => navigation.navigate('HealthProfile')}>
-                                    <View style={styles.quickContent}>
-                                        <View style={[styles.quickIconBox, { backgroundColor: '#F3E8FF' }]}><Activity size={20} color="#9333EA" /></View>
-                                        <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Health Profile</Text><Text style={styles.quickCardSub}>Updated Oct 24</Text></View>
-                                    </View><ChevronRight size={18} color="#CBD5E1" />
-                                </Pressable>
-
-                                <Pressable style={styles.quickCard}>
-                                    <View style={styles.quickContent}>
-                                        <View style={[styles.quickIconBox, { backgroundColor: '#FEF3C7' }]}><CalendarDays size={20} color="#D97706" /></View>
-                                        <View style={styles.quickTextView}><Text style={styles.quickCardTitle}>Schedule</Text><Text style={styles.quickCardSub}>Next Appt: Friday</Text></View>
-                                    </View><ChevronRight size={18} color="#CBD5E1" />
-                                </Pressable>
-                            </View>
-                        </View>
-                    </>
-                )}
+                </View>
             </ScrollView>
         </View>
     );

@@ -63,12 +63,18 @@ const supabase = createClient(
  */
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, fullName, role, organizationId, phone } = req.body;
+    const { email, password, fullName, role, organizationId, phone, supabaseUid } = req.body;
 
     // Validate required fields
-    if (!email || !password || !fullName || !role) {
+    if (!email || !fullName || !role) {
       return res.status(400).json({
-        error: 'Missing required fields: email, password, fullName, role'
+        error: 'Missing required fields: email, fullName, role'
+      });
+    }
+
+    if (!supabaseUid && !password) {
+      return res.status(400).json({
+        error: 'Password is required when creating a new user'
       });
     }
 
@@ -97,33 +103,40 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Create user in Supabase
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      user_metadata: {
-        full_name: fullName,
-        role: role
-      },
-      email_confirm: true // Set to false in production to require email verification
-    });
+    let finalUid = supabaseUid;
+    let authDataPayload = null;
 
-    if (authError) {
-      await logEvent('anonymous', 'registration_failed', 'profile', null, req, {
+    if (!finalUid) {
+      // Create user in Supabase
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email,
-        role,
-        reason: authError.message
+        password,
+        user_metadata: {
+          full_name: fullName,
+          role: role
+        },
+        email_confirm: true // Set to false in production to require email verification
       });
 
-      return res.status(400).json({
-        error: 'Failed to create user in Supabase',
-        details: authError.message
-      });
+      if (authError) {
+        await logEvent('anonymous', 'registration_failed', 'profile', null, req, {
+          email,
+          role,
+          reason: authError.message
+        });
+
+        return res.status(400).json({
+          error: 'Failed to create user in Supabase',
+          details: authError.message
+        });
+      }
+      finalUid = authData.user.id;
+      authDataPayload = authData.user;
     }
 
     // Create profile in MongoDB
     const profile = new Profile({
-      supabaseUid: authData.user.id,
+      supabaseUid: finalUid,
       email,
       fullName,
       role,
@@ -145,14 +158,21 @@ router.post('/register', async (req, res) => {
     }
 
     // Log successful registration
-    await logEvent(authData.user.id, 'profile_created', 'profile', profile._id, req, {
+    await logEvent(finalUid, 'profile_created', 'profile', profile._id, req, {
       email,
       role,
       organizationId
     });
 
     // Return user data without sensitive information
-    const { password: _, ...userResponse } = authData.user;
+    let userResponse = {};
+    if (authDataPayload) {
+      const { password: _, ...rest } = authDataPayload;
+      userResponse = rest;
+    } else {
+      userResponse = { id: finalUid, email };
+    }
+
     res.status(201).json({
       message: 'User registered successfully',
       user: userResponse,

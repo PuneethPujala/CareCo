@@ -164,7 +164,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
 
 // ─── Main Component ──────────────────────
 export default function PatientSignupScreen({ navigation, route }) {
-    const { signUp, signInWithGoogle } = useAuth();
+    const { signUp, signInWithGoogle, completeSignUp } = useAuth();
     const [step, setStep] = useState(route?.params?.step || 1);
     const [form, setForm] = useState({
         fullName: '', email: '', city: '', password: '', confirmPassword: '',
@@ -248,8 +248,13 @@ export default function PatientSignupScreen({ navigation, route }) {
         }
     };
 
-    const handlePaymentSuccess = () => {
+    const handlePaymentSuccess = async () => {
         setUpiModalVisible(false);
+        try {
+            await apiService.patients.subscribe({ plan: 'basic', paid: 1 });
+        } catch (err) {
+            console.warn('Backend payment save failed:', err.message);
+        }
         setStep(3);
     };
 
@@ -425,7 +430,7 @@ export default function PatientSignupScreen({ navigation, route }) {
             <Text style={styles.centerDesc}>
                 Your CareCo account is ready. Explore your dashboard while we schedule your onboarding call.
             </Text>
-            <Pressable style={styles.primaryBtn} onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PatientTabs' }] })}>
+            <Pressable style={styles.primaryBtn} onPress={completeSignUp}>
                 <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
             </Pressable>
         </View>

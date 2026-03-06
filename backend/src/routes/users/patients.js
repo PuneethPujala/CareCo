@@ -9,7 +9,7 @@ const { authenticate } = require('../../middleware/authenticate');
 const router = express.Router();
 
 // ─── Auto-Seed Basic Profile ────────────────────────────
-async function createBasicPatient(supabaseUid, email, name) {
+async function createBasicPatient(supabaseUid, email, name, paid = 0) {
     const orgId = new mongoose.Types.ObjectId();
     const patient = await Patient.create({
         supabase_uid: supabaseUid,
@@ -17,14 +17,15 @@ async function createBasicPatient(supabaseUid, email, name) {
         email,
         city: 'Hyderabad', // Mock default city picked during signup
         organization_id: orgId,
-        subscription: { status: 'inactive', plan: 'free' },
+        subscription: { status: paid === 1 ? 'active' : 'inactive', plan: paid === 1 ? 'basic' : 'free' },
+        paid,
         profile_complete: false,
         conditions: [],
         medical_history: [],
         allergies: [],
         medications: []
     });
-    console.log(`✅ Auto-seeded basic Free profile for ${email}`);
+    console.log(`✅ Auto-seeded basic profile for ${email} (paid: ${paid})`);
     return patient;
 }
 
@@ -151,16 +152,52 @@ router.get('/me', authenticate, async (req, res) => {
 });
 
 /**
+ * PUT /api/users/patients/me
+ * Update basic patient profile details (city, name)
+ */
+router.put('/me', authenticate, async (req, res) => {
+    try {
+        const { name, city } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { $set: { name, city } },
+            { new: true }
+        );
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        res.json({ patient, message: 'Profile updated successfully' });
+    } catch (error) {
+        console.error('Update patient profile error:', error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+/**
  * POST /api/users/patients/subscribe
  * Subscribes a Free patient to a paid plan, assigning a Caller and seeding demo health data
  */
 router.post('/subscribe', authenticate, async (req, res) => {
     try {
-        const { plan } = req.body;
+        const { plan, paid } = req.body;
         let patient = await Patient.findOne({ supabase_uid: req.user.id });
 
-        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        if (!patient) {
+            try {
+                patient = await createBasicPatient(
+                    req.user.id,
+                    req.user.email,
+                    req.user.user_metadata?.full_name || req.user.user_metadata?.name
+                );
+            } catch (seedErr) {
+                console.error('Auto-seed error in subscribe:', seedErr);
+                return res.status(500).json({ error: 'Failed to create patient profile' });
+            }
+        }
+
         if (patient.subscription?.plan !== 'free') return res.status(400).json({ error: 'Already subscribed' });
+
+        if (paid !== undefined) {
+            patient.paid = paid;
+        }
 
         // Simulate payment success, then seed data
         patient = await subscribeAndSeedDemoData(patient);

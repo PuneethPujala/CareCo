@@ -13,6 +13,7 @@ export function AuthProvider({ children }) {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [initializing, setInitializing] = useState(true);
+    const [isOnboarding, setIsOnboarding] = useState(false);
 
     const skipNextFetchRef = useRef(false);
     const profileRef = useRef(profile);
@@ -95,28 +96,34 @@ export function AuthProvider({ children }) {
     // Sign Up
     const signUp = useCallback(async (email, password, fullName, role, additionalData = {}) => {
         setLoading(true);
+        setIsOnboarding(true);
         try {
-            const authData = await auth.signUp(email, password, {
-                data: { full_name: fullName, role, ...additionalData },
+            // 1. Register with backend (creates Supabase Admin user + MongoDB Profile)
+            const registerRes = await apiService.auth.register({
+                email, password, fullName, role, ...additionalData
             });
 
-            if (authData.session) {
-                try {
-                    await apiService.auth.register({
-                        supabaseUid: authData.user.id, email, fullName, role, ...additionalData,
-                    });
-                } catch (e) {
-                    console.warn('Profile creation warning:', e?.message);
-                }
-            }
+            // 2. Immediately login to get the active session
+            const loginRes = await apiService.auth.login({ email, password, role });
+            const { session, profile: profileData } = loginRes.data;
+
+            setUser(session.user);
+            setProfile(profileData);
+            skipNextFetchRef.current = true;
+
+            await supabase.auth.setSession({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+            });
 
             return {
-                user: authData.user,
-                session: authData.session,
-                needsEmailVerification: !authData.session,
+                user: session.user,
+                session: session,
+                needsEmailVerification: false,
             };
         } catch (error) {
-            throw handleAuthError(error);
+            const msg = error?.response?.data?.error || error?.message || 'Signup failed.';
+            throw new Error(msg);
         } finally {
             setLoading(false);
         }
@@ -150,6 +157,7 @@ export function AuthProvider({ children }) {
                 // New Google user — profile doesn't exist yet
                 // Return info so the screen can route to sign-up step 2
                 setLoading(false);
+                setIsOnboarding(true);
                 return { isNewUser: true, user: data.user };
             }
 
@@ -167,14 +175,18 @@ export function AuthProvider({ children }) {
         catch (error) { throw handleAuthError(error); }
     }, []);
 
-    const isAuthenticated = !!user && !!profile;
+    const completeSignUp = useCallback(() => {
+        setIsOnboarding(false);
+    }, []);
+
+    const isAuthenticated = !!user && !!profile && !isOnboarding;
     const displayName = profile?.fullName || user?.user_metadata?.full_name || 'User';
     const userRole = profile?.role; // 'patient' or 'caller'/'caretaker'
 
     const value = {
         user, profile, loading, initializing,
         isAuthenticated, displayName, userRole, userEmail: user?.email,
-        signIn, signUp, signOut, resetPassword, signInWithGoogle,
+        signIn, signUp, signOut, resetPassword, signInWithGoogle, completeSignUp
     };
 
     return (

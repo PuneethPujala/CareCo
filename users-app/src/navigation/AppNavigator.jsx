@@ -19,7 +19,10 @@ import MyCallerScreen from '../screens/patient/MyCallerScreen';
 import MedicationsScreen from '../screens/patient/MedicationsScreen';
 import HealthProfileScreen from '../screens/patient/HealthProfileScreen';
 import NotificationsScreen from '../screens/patient/NotificationsScreen';
-import PatientProfileScreen from '../screens/patient/ProfileScreen'; // New profile tab view
+import PatientProfileScreen from '../screens/patient/ProfileScreen';
+import SubscribePlansScreen from '../screens/patient/SubscribePlansScreen';
+import PaymentScreen from '../screens/patient/PaymentScreen';
+import WaitingScreen from '../screens/patient/WaitingScreen';
 
 // Caller screens
 import CallerHomeScreen from '../screens/caller/HomeScreen';
@@ -122,6 +125,9 @@ export default function AppNavigator() {
             ) : (
                 <>
                     <Stack.Screen name="PatientTabs" component={PatientTabNavigator} />
+                    <Stack.Screen name="SubscribePlans" component={SubscribePlansScreen} />
+                    <Stack.Screen name="Payment" component={PaymentScreen} />
+                    <Stack.Screen name="WaitingRoom" component={WaitingScreen} />
                     <Stack.Screen name="GoogleOnboarding" component={GoogleOnboardingScreen} />
                     <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ presentation: 'modal' }} />
                 </>
