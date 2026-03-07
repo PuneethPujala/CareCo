@@ -2,6 +2,7 @@
   "expo": {
     "name": "CareCo",
     "slug": "careco-users",
+    "scheme": "careco-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",

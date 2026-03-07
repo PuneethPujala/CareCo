@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, ActivityIndicator, Linking } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, ActivityIndicator, Linking, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Phone, PhoneIncoming, AlertTriangle, ShieldCheck, Flag, CalendarCheck, Globe, ChevronRight, X, Bell } from 'lucide-react-native';
+import { Phone, PhoneIncoming, AlertTriangle, ShieldCheck, Flag, CalendarCheck, Globe, ChevronRight, X, Bell, Info, PhoneOff } from 'lucide-react-native';
 import { colors } from '../../theme';
 import { apiService } from '../../lib/api';
 
@@ -19,6 +19,17 @@ export default function MyCallerScreen({ navigation }) {
     const [loading, setLoading] = useState(true);
     const [detailVisible, setDetailVisible] = useState(false);
 
+    const staggerAnims = React.useRef([...Array(10)].map(() => new Animated.Value(0))).current;
+
+    const runAnimations = React.useCallback(() => {
+        staggerAnims.forEach(anim => anim.setValue(0));
+        Animated.stagger(100,
+            staggerAnims.map(anim =>
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+            )
+        ).start();
+    }, [staggerAnims]);
+
     useEffect(() => {
         (async () => {
             try {
@@ -32,6 +43,7 @@ export default function MyCallerScreen({ navigation }) {
                     ]);
                     setCaller(callerRes.data.caller);
                     setCalls(callsRes.data.calls || []);
+                    runAnimations();
                 }
             } catch (err) {
                 console.warn('Failed to load caller data:', err.message);
@@ -39,7 +51,9 @@ export default function MyCallerScreen({ navigation }) {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [runAnimations]);
+
+
 
     const formatDate = (dateStr) => {
         const d = new Date(dateStr);
@@ -80,33 +94,66 @@ export default function MyCallerScreen({ navigation }) {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-                <View style={styles.decorativeCircle} />
+                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
+                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
                 <Text style={styles.headerLabel}>CareCo</Text>
-                <Text style={styles.headerTitle}>Assigned Callers</Text>
+                <Text style={styles.headerTitle}>Assigned Companions</Text>
                 <Pressable style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
                     <Bell size={22} color="#FFFFFF" strokeWidth={2} />
                 </Pressable>
             </LinearGradient>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-                <Text style={styles.sectionHeader}>YOUR CARE TEAM</Text>
+                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <Text style={styles.sectionHeader}>YOUR CARE TEAM</Text>
 
-                {caller && (
-                    <Pressable style={styles.callerListCard} onPress={() => setDetailVisible(true)}>
-                        <View style={styles.avatarWrapSmall}>
-                            <View style={styles.avatarSmall}><Text style={styles.avatarTxtSmall}>{caller.name?.charAt(0)}</Text></View>
-                            <View style={styles.onlineDot} />
-                        </View>
-                        <View style={styles.callerListContent}>
-                            <Text style={styles.callerListName}>{caller.name}</Text>
-                            <Text style={styles.callerListSub}>ID: {caller.employee_id} • {caller.experience_years} yrs</Text>
-                            <Text style={styles.callerListBottom}>Languages: {caller.languages_spoken?.join(', ')}</Text>
-                        </View>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                    </Pressable>
-                )}
-                {!caller && <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 20 }}>No caller assigned yet.</Text>}
+                    {caller ? (
+                        <Pressable style={styles.callerCardEnhanced} onPress={() => setDetailVisible(true)}>
+                            <View style={styles.avatarWrapSmall}>
+                                <View style={styles.avatarSmall}><Text style={styles.avatarTxtSmall}>{caller.name?.charAt(0)}</Text></View>
+                                <View style={styles.onlineDot} />
+                            </View>
+                            <View style={styles.callerListContent}>
+                                <Text style={styles.callerListName}>{caller.name}</Text>
+                                <View style={styles.idRow}>
+                                    <ShieldCheck size={14} color="#16A34A" />
+                                    <Text style={styles.callerListSub}>ID: {caller.employee_id} • {caller.experience_years} yrs</Text>
+                                </View>
+                                <View style={styles.langRow}>
+                                    <Globe size={13} color={colors.accent} />
+                                    <Text style={styles.callerListBottom}>{caller.languages_spoken?.join(', ')}</Text>
+                                </View>
+                            </View>
+                            <ChevronRight size={20} color="#CBD5E1" />
+                        </Pressable>
+                    ) : (
+                        <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 20 }}>No caller assigned yet.</Text>
+                    )}
+                </Animated.View>
+
+                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <Text style={[styles.sectionHeader, { marginTop: 24 }]}>QUICK HISTORY</Text>
+                    {calls.slice(0, 3).map((call) => {
+                        const config = STATUS_CONFIG[call.status] || STATUS_CONFIG.completed;
+                        const Icon = config.Icon;
+                        return (
+                            <View key={call._id} style={styles.historyCardMini}>
+                                <View style={[styles.historyIconBoxMini, { backgroundColor: config.accent + '15' }]}>
+                                    <Icon size={16} color={config.accent} strokeWidth={2.5} />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.historyCardTitle}>{formatDate(call.call_date)}</Text>
+                                    <Text style={styles.historyCardSub} numberOfLines={1}>{call.ai_summary || 'Routine check-in call.'}</Text>
+                                </View>
+                                <Text style={[styles.durationTxtMini, { color: call.status === 'missed' ? colors.danger : '#64748B' }]}>
+                                    {formatDuration(call.call_duration_seconds)}
+                                </Text>
+                            </View>
+                        );
+                    })}
+                </Animated.View>
             </ScrollView>
+
 
             {/* Detail Modal */}
             <Modal visible={detailVisible} animationType="slide" transparent={false} onRequestClose={() => setDetailVisible(false)}>
@@ -183,57 +230,76 @@ const styles = StyleSheet.create({
     header: {
         height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
         alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 56 : 38, overflow: 'hidden',
+        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
     },
-    decorativeCircle: { position: 'absolute', top: -35, right: -35, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.08)' },
+    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
     headerLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-    bellBtn: { position: 'absolute', right: 20, top: Platform.OS === 'ios' ? 60 : 42 },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+    bellBtn: { position: 'absolute', right: 20, top: Platform.OS === 'ios' ? 70 : 50, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
 
     body: { flex: 1 },
-    bodyContent: { paddingHorizontal: 16, paddingBottom: 110, paddingTop: 20 },
+    bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
 
-    sectionHeader: { fontSize: 13, fontWeight: '600', color: '#94A3B8', letterSpacing: 1, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
+    sectionHeader: { fontSize: 13, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
 
-    callerListCard: { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    avatarWrapSmall: { position: 'relative', marginRight: 16 },
-    avatarSmall: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
-    avatarTxtSmall: { fontSize: 18, fontWeight: '700', color: colors.accent },
-    onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.success, borderWidth: 2, borderColor: '#FFF' },
-    callerListContent: { flex: 1 },
-    callerListName: { fontSize: 16, fontWeight: '700', color: '#1A202C' },
-    callerListSub: { fontSize: 13, color: '#64748B', marginTop: 2 },
-    callerListBottom: { fontSize: 12, color: colors.accent, marginTop: 4, fontWeight: '600' },
+    callerCardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 6 },
+    callerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+    avatarEnhanced: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(58,134,255,0.1)' },
+    avatarTxt: { fontSize: 22, fontWeight: '800', color: colors.accent },
+    onlineDot: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2.5, borderColor: '#FFF' },
+    callerInfo: { flex: 1, marginLeft: 16 },
+    callerName: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
+    relationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+    callerRelation: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+    infoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 16 },
+    callerDetails: { flexDirection: 'row', gap: 20 },
+    detailItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    detailText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+    idRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+    langRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
 
-    detailHeaderGradient: { paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+    historyCardMini: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
+    historyIconBoxMini: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+    historyCardTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
+    historyCardSub: { fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '500' },
+    durationTxtMini: { fontSize: 12, fontWeight: '700' },
+
+    detailHeaderGradient: { paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
     detailHeaderTopRow: { marginBottom: 20 },
     detailAvatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
     avatarLargeWrap: { marginRight: 20 },
-    avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-    avatarTxtLarge: { fontSize: 28, fontWeight: '700', color: colors.primary },
-    detailName: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
-    detailId: { fontSize: 14, color: '#BDD4EE', marginTop: 4 },
-    detailOnline: { fontSize: 13, fontWeight: '600', color: '#4ADE80', marginTop: 6 },
+    avatarLarge: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
+    avatarTxtLarge: { fontSize: 32, fontWeight: '800', color: colors.primary },
+    detailName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
+    detailId: { fontSize: 14, color: '#BDD4EE', marginTop: 4, fontWeight: '600' },
+    detailOnline: { fontSize: 13, fontWeight: '700', color: '#4ADE80', marginTop: 8 },
 
-    statsMap: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 16 },
+    statsMap: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 20 },
     statCol: { flex: 1, alignItems: 'center' },
-    statColVal: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', marginTop: 6 },
-    statColLabel: { fontSize: 11, color: '#BDD4EE', marginTop: 2 },
-    statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginHorizontal: 10 },
+    statColVal: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginTop: 8 },
+    statColLabel: { fontSize: 11, color: '#BDD4EE', marginTop: 4, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+    statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 10 },
 
-    actionRow: { flexDirection: 'row', gap: 12, marginBottom: 24, marginTop: 10 },
-    callBtnFull: { flex: 1, flexDirection: 'row', backgroundColor: colors.accent, borderRadius: 8, height: 50, alignItems: 'center', justifyContent: 'center', gap: 8 },
-    callBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-    flagBtnFull: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#FECACA', borderRadius: 8, height: 50 },
-    flagBtnText: { color: colors.danger, fontSize: 15, fontWeight: '600' },
+    actionRow: { flexDirection: 'row', gap: 12, marginBottom: 32, marginTop: 16 },
+    callBtnFull: { flex: 1, flexDirection: 'row', backgroundColor: colors.accent, borderRadius: 14, height: 56, alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+    callBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+    flagBtnFull: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#FEE2E2', borderRadius: 14, height: 56 },
+    flagBtnText: { color: colors.danger, fontSize: 15, fontWeight: '800' },
 
-    historyCard: { backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1.5, borderColor: '#E2E8F0' },
-    historyAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
-    historyCardInner: { flexDirection: 'row', padding: 16, paddingLeft: 20, alignItems: 'center' },
-    historyIconBox: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+    historyCard: { backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4 },
+    historyAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+    historyCardInner: { flexDirection: 'row', padding: 18, paddingLeft: 22, alignItems: 'center' },
+    historyIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
     historyContent: { flex: 1 },
-    historyTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-    historyDate: { fontSize: 14, fontWeight: '700', color: '#1A202C' },
-    durationTxt: { fontSize: 12, fontWeight: '600' },
-    historySummary: { fontSize: 13, color: '#4A5568', lineHeight: 20 },
+    historyTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    historyDate: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
+    durationTxt: { fontSize: 13, fontWeight: '700' },
+    historySummary: { fontSize: 14, color: '#475569', lineHeight: 22, fontWeight: '500' },
+
+    emptyCard: { backgroundColor: '#F8FAFC', borderRadius: 20, padding: 32, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0' },
+    emptyTxt: { color: '#94A3B8', fontSize: 15, fontWeight: '600' },
+    emptyLogs: { alignItems: 'center', marginTop: 40, opacity: 0.5 },
+    emptyLogsTxt: { marginTop: 12, color: '#64748B', fontWeight: '600' },
 });
+

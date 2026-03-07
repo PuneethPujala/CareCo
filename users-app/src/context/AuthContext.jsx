@@ -30,21 +30,31 @@ export function AuthProvider({ children }) {
                     setUser(session.user);
                     try {
                         const response = await apiService.auth.getProfile();
-                        setProfile(response.data.profile);
-                    } catch {
-                        await auth.signOut().catch(() => { });
-                        setUser(null);
-                        setProfile(null);
+                        const profileData = response.data.profile;
+                        setProfile(profileData);
+
+                        // If patient but NOT active subscription, they are in onboarding
+                        if (profileData.role === 'patient' && profileData.subscription_status !== 'active') {
+                            setIsOnboarding(true);
+                            isOnboardingRef.current = true;
+                        }
+                    } catch (error) {
+                        console.warn('Profile fetch failed, signing out:', error.message);
+                        await signOut();
                     }
                 }
-            } catch {
-                // No session
+            } catch (error) {
+                console.warn('Auth initialization failed:', error.message);
+                // If the error is about refresh tokens, we must clear the session
+                if (error.message?.includes('Refresh Token')) {
+                    await signOut();
+                }
             } finally {
                 setInitializing(false);
             }
         };
         init();
-    }, []);
+    }, [signOut]);
 
     // Auth state listener
     useEffect(() => {
@@ -52,14 +62,17 @@ export function AuthProvider({ children }) {
             if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setProfile(null);
+                setIsOnboarding(false);
+                isOnboardingRef.current = false;
                 return;
             }
 
-            // During onboarding, signUp() manages state directly — ignore all auth events
-            if (isOnboardingRef.current) return;
-
             if (session?.user) {
                 setUser(session.user);
+
+                // During onboarding, we manage state directly — ignore automatic profile fetch
+                if (isOnboardingRef.current) return;
+
                 if (skipFetchCountRef.current > 0) {
                     skipFetchCountRef.current--;
                     return;
@@ -83,6 +96,13 @@ export function AuthProvider({ children }) {
             const { session, profile: profileData } = response.data;
 
             setProfile(profileData);
+
+            // Check if patient needs onboarding (not active subscription)
+            if (profileData.role === 'patient' && profileData.subscription_status !== 'active') {
+                setIsOnboarding(true);
+                isOnboardingRef.current = true;
+            }
+
             skipFetchCountRef.current = 2; // setSession can fire up to 2 events
 
             await supabase.auth.setSession({
@@ -90,6 +110,7 @@ export function AuthProvider({ children }) {
                 refresh_token: session.refresh_token,
             });
 
+            setUser(session.user);
             setLoading(false);
             return response.data;
         } catch (error) {
@@ -105,12 +126,12 @@ export function AuthProvider({ children }) {
         setIsOnboarding(true);
         isOnboardingRef.current = true; // set ref immediately (don't wait for useEffect)
         try {
-            // 1. Register with backend (creates Supabase Admin user + MongoDB Profile + Patient)
+            // 1. Register with backend
             const registerRes = await apiService.auth.register({
                 email, password, fullName, role, ...additionalData
             });
 
-            // 2. Immediately login to get the active session
+            // 2. Immediately login
             const loginRes = await apiService.auth.login({ email, password, role });
             const { session, profile: profileData } = loginRes.data;
 

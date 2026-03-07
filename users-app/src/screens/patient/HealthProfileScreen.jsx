@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TriangleAlert, ShieldCheck } from 'lucide-react-native';
 import { colors } from '../../theme';
@@ -9,18 +9,31 @@ export default function HealthProfileScreen() {
     const [patient, setPatient] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const staggerAnims = useRef([...Array(10)].map(() => new Animated.Value(0))).current;
+
+    const runAnimations = useCallback(() => {
+        staggerAnims.forEach(anim => anim.setValue(0));
+        Animated.stagger(100,
+            staggerAnims.map(anim =>
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+            )
+        ).start();
+    }, [staggerAnims]);
+
     useEffect(() => {
         (async () => {
             try {
                 const { data } = await apiService.patients.getMe();
                 setPatient(data.patient);
+                runAnimations();
             } catch (err) {
                 console.warn('Failed to load health profile:', err.message);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [runAnimations]);
+
 
     if (loading) {
         return (
@@ -51,7 +64,8 @@ export default function HealthProfileScreen() {
     return (
         <View style={styles.container}>
             <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-                <View style={styles.decorativeCircle} />
+                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
+                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
                 <Text style={styles.headerLabel}>CareCo</Text>
                 <Text style={styles.headerTitle}>Health Profile</Text>
             </LinearGradient>
@@ -59,80 +73,95 @@ export default function HealthProfileScreen() {
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
 
                 {/* Conditions */}
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>CURRENT CONDITIONS</Text>
-                    <View style={styles.chipWrap}>
-                        {conditions.map((c, i) => (
-                            <View key={i} style={styles.chip}>
-                                <Text style={styles.chipTxt}>{c.name}</Text>
-                                {c.status === 'managed' && <Text style={styles.chipStatusManaged}>Managed</Text>}
-                            </View>
-                        ))}
-                        {conditions.length === 0 && <Text style={styles.emptyTxt}>No conditions recorded</Text>}
+                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <View style={styles.cardEnhanced}>
+                        <Text style={styles.cardTitle}>CURRENT CONDITIONS</Text>
+                        <View style={styles.chipWrap}>
+                            {conditions.map((c, i) => (
+                                <View key={i} style={styles.chipEnhanced}>
+                                    <View style={styles.chipIndicator} />
+                                    <Text style={styles.chipTxt}>{c.name}</Text>
+                                    {c.status === 'managed' && <View style={styles.statusBadge}><Text style={styles.statusBadgeTxt}>Managed</Text></View>}
+                                </View>
+                            ))}
+                            {conditions.length === 0 && <Text style={styles.emptyTxt}>No conditions recorded</Text>}
+                        </View>
                     </View>
-                </View>
+                </Animated.View>
 
                 {/* Allergies */}
-                <View style={[styles.card, styles.alertBorder]}>
-                    <View style={styles.rowTitle}>
-                        <Text style={[styles.cardTitle, { color: colors.danger, marginBottom: 0 }]}>ALLERGIES</Text>
-                        <TriangleAlert size={16} color={colors.danger} />
+                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <View style={[styles.cardEnhanced, styles.alertBorderEnhanced]}>
+                        <View style={styles.rowTitle}>
+                            <Text style={[styles.cardTitle, { color: '#EF4444', marginBottom: 0 }]}>ALLERGIES</Text>
+                            <TriangleAlert size={16} color="#EF4444" strokeWidth={2.5} />
+                        </View>
+                        <View style={styles.chipWrap}>
+                            {allergies.map((a, i) => (
+                                <View key={i} style={styles.chipDangerEnhanced}><Text style={styles.chipDangerTxt}>{a}</Text></View>
+                            ))}
+                            {allergies.length === 0 && <Text style={styles.emptyTxt}>No allergies recorded</Text>}
+                        </View>
                     </View>
-                    <View style={styles.chipWrap}>
-                        {allergies.map((a, i) => (
-                            <View key={i} style={styles.chipDanger}><Text style={styles.chipDangerTxt}>{a}</Text></View>
-                        ))}
-                        {allergies.length === 0 && <Text style={styles.emptyTxt}>No allergies recorded</Text>}
-                    </View>
-                </View>
+                </Animated.View>
 
                 {/* Medical History Timeline */}
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>MEDICAL HISTORY</Text>
-                    {history.map((h, i) => (
-                        <View key={i} style={styles.timelineRow}>
-                            <View style={styles.dot} />
-                            {i < history.length - 1 && <View style={styles.line} />}
-                            <View style={styles.timelineContent}>
-                                <Text style={styles.timelineDate}>
-                                    {h.date ? new Date(h.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Unknown'}
-                                </Text>
-                                <Text style={styles.timelineTitle}>{h.event}</Text>
-                                <Text style={styles.timelineDesc}>{h.notes}</Text>
-                            </View>
+                <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <View style={styles.cardEnhanced}>
+                        <Text style={styles.cardTitle}>MEDICAL HISTORY</Text>
+                        <View style={styles.timelineContainer}>
+                            {history.map((h, i) => (
+                                <View key={i} style={styles.timelineRowEnhanced}>
+                                    <View style={styles.timelineLeft}>
+                                        <View style={styles.dotEnhanced} />
+                                        {i < history.length - 1 && <View style={styles.lineEnhanced} />}
+                                    </View>
+                                    <View style={styles.timelineContentEnhanced}>
+                                        <Text style={styles.timelineDateEnhanced}>
+                                            {h.date ? new Date(h.date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : 'Unknown'}
+                                        </Text>
+                                        <Text style={styles.timelineTitleEnhanced}>{h.event}</Text>
+                                        <Text style={styles.timelineDescEnhanced}>{h.notes}</Text>
+                                    </View>
+                                </View>
+                            ))}
+                            {history.length === 0 && <Text style={styles.emptyTxt}>No medical history available</Text>}
                         </View>
-                    ))}
-                    {history.length === 0 && <Text style={styles.emptyTxt}>No medical history available</Text>}
-                </View>
+                    </View>
+                </Animated.View>
 
                 {/* Current Medications */}
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>CURRENT MEDICATIONS</Text>
-                    {meds.map((m, i) => (
-                        <View key={i} style={styles.medRow}>
-                            <View style={styles.medDot} />
-                            <View style={styles.medInfo}>
-                                <Text style={styles.medName}>{m.name} — {m.dosage}</Text>
-                                <Text style={styles.medDetail}>{m.frequency} • {m.times?.join(', ')} • {m.prescribed_by}</Text>
-                                {m.instructions && <Text style={styles.medInstruction}>"{m.instructions}"</Text>}
+                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <View style={styles.cardEnhanced}>
+                        <Text style={styles.cardTitle}>CURRENT MEDICATIONS</Text>
+                        {meds.map((m, i) => (
+                            <View key={i} style={styles.medRowEnhanced}>
+                                <View style={styles.medCircleIcon}><ShieldCheck size={18} color={colors.accent} strokeWidth={2.5} /></View>
+                                <View style={styles.medInfoEnhanced}>
+                                    <Text style={styles.medNameEnhanced}>{m.name} — {m.dosage}</Text>
+                                    <Text style={styles.medDetailEnhanced}>{m.frequency} • {m.times?.join(', ')} • {m.prescribed_by}</Text>
+                                </View>
                             </View>
-                        </View>
-                    ))}
-                </View>
+                        ))}
+                    </View>
+                </Animated.View>
 
                 {/* Emergency Contact */}
-                <View style={styles.managerCard}>
-                    <View style={styles.rowTitle}>
-                        <ShieldCheck size={18} color="#4ADE80" />
-                        <Text style={styles.managerLabel}>EMERGENCY CONTACT</Text>
-                    </View>
-                    <Text style={styles.managerName}>{emergency.name || 'Not set'}</Text>
-                    <Text style={styles.managerDetail}>{emergency.relation} • {emergency.phone}</Text>
-                </View>
+                <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <LinearGradient colors={['#0F172A', '#1E293B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.managerCardEnhanced}>
+                        <View style={styles.rowTitle}>
+                            <View style={styles.managerIconBox}><ShieldCheck size={20} color="#4ADE80" strokeWidth={2.5} /></View>
+                            <Text style={styles.managerLabelEnhanced}>EMERGENCY CONTACT</Text>
+                        </View>
+                        <Text style={styles.managerNameEnhanced}>{emergency.name || 'Not set'}</Text>
+                        <Text style={styles.managerDetailEnhanced}>{emergency.relation} • {emergency.phone}</Text>
+                    </LinearGradient>
+                </Animated.View>
 
             </ScrollView>
         </View>
     );
+
 }
 
 const styles = StyleSheet.create({
@@ -140,51 +169,52 @@ const styles = StyleSheet.create({
     header: {
         height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
         alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 56 : 38, overflow: 'hidden',
+        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
     },
-    decorativeCircle: { position: 'absolute', top: -35, right: -35, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.08)' },
+    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
     headerLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
 
     body: { flex: 1 },
-    bodyContent: { paddingHorizontal: 16, paddingBottom: 110, paddingTop: 16 },
+    bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
 
-    card: {
-        backgroundColor: '#FFFFFF', borderRadius: 12, padding: 20, marginBottom: 16,
-        borderWidth: 1.5, borderColor: '#E2E8F0',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
-    },
-    alertBorder: { borderColor: '#FCA5A5' },
-    cardTitle: { fontSize: 13, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginBottom: 14 },
-    rowTitle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { backgroundColor: '#EFF6FF', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 6 },
-    chipTxt: { fontSize: 14, fontWeight: '600', color: '#3B82F6' },
-    chipStatusManaged: { fontSize: 10, fontWeight: '700', color: '#16A34A', backgroundColor: '#DCFCE7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-    chipDanger: { backgroundColor: '#FEF2F2', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-    chipDangerTxt: { fontSize: 14, fontWeight: '600', color: '#EF4444' },
-    emptyTxt: { fontSize: 14, color: '#94A3B8', fontStyle: 'italic' },
+    cardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, marginBottom: 20, shadowColor: '#0A2463', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.05, shadowRadius: 20, elevation: 4, borderWidth: 1, borderColor: '#F1F5F9' },
+    cardTitle: { fontSize: 13, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.2, marginBottom: 20, textTransform: 'uppercase' },
 
-    timelineRow: { flexDirection: 'row', marginBottom: 20, position: 'relative' },
-    dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent, marginTop: 5, marginRight: 14, zIndex: 1 },
-    line: { position: 'absolute', left: 4, top: 15, width: 2, height: '100%', backgroundColor: '#E2E8F0' },
-    timelineContent: { flex: 1 },
-    timelineDate: { fontSize: 12, fontWeight: '600', color: '#94A3B8', marginBottom: 2 },
-    timelineTitle: { fontSize: 15, fontWeight: '700', color: '#1A202C', marginBottom: 2 },
-    timelineDesc: { fontSize: 13, color: '#4A5568', lineHeight: 20 },
+    chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    chipEnhanced: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0' },
+    chipIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent, marginRight: 10 },
+    chipTxt: { fontSize: 14, fontWeight: '600', color: '#1E293B' },
+    statusBadge: { backgroundColor: 'rgba(34,197,94,0.1)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
+    statusBadgeTxt: { fontSize: 11, fontWeight: '700', color: '#16A34A' },
 
-    medRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-    medDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent, marginTop: 6, marginRight: 12 },
-    medInfo: { flex: 1 },
-    medName: { fontSize: 15, fontWeight: '700', color: '#1A202C' },
-    medDetail: { fontSize: 12, color: '#64748B', marginTop: 2 },
-    medInstruction: { fontSize: 12, color: '#94A3B8', fontStyle: 'italic', marginTop: 2 },
+    alertBorderEnhanced: { borderColor: '#FEE2E2', backgroundColor: '#FFFBFB' },
+    chipDangerEnhanced: { backgroundColor: '#FEE2E2', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: '#FECACA' },
+    chipDangerTxt: { fontSize: 13, fontWeight: '700', color: '#DC2626' },
 
-    managerCard: {
-        backgroundColor: '#0F172A', borderRadius: 16, padding: 20, marginBottom: 16,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 6,
-    },
-    managerLabel: { fontSize: 13, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginLeft: 8 },
-    managerName: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginTop: 12 },
-    managerDetail: { fontSize: 14, color: '#94A3B8', marginTop: 4 },
+    timelineContainer: { marginTop: 4 },
+    timelineRowEnhanced: { flexDirection: 'row', gap: 20, marginBottom: 24 },
+    timelineLeft: { alignItems: 'center', width: 24 },
+    dotEnhanced: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.accent, borderWidth: 3, borderColor: '#E0E7FF' },
+    lineEnhanced: { width: 2, flex: 1, backgroundColor: '#E2E8F0', marginVertical: 4 },
+    timelineContentEnhanced: { flex: 1, paddingTop: 0 },
+    timelineDateEnhanced: { fontSize: 12, fontWeight: '800', color: '#94A3B8', marginBottom: 4 },
+    timelineTitleEnhanced: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+    timelineDescEnhanced: { fontSize: 14, color: '#64748B', marginTop: 6, lineHeight: 22, fontWeight: '500' },
+
+    medRowEnhanced: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, gap: 16 },
+    medCircleIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
+    medInfoEnhanced: { flex: 1 },
+    medNameEnhanced: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+    medDetailEnhanced: { fontSize: 13, color: '#64748B', marginTop: 4, fontWeight: '600' },
+
+    managerCardEnhanced: { borderRadius: 24, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 8 },
+    managerIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(74,222,128,0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    managerLabelEnhanced: { fontSize: 12, fontWeight: '800', color: '#94A3B8', letterSpacing: 1 },
+    managerNameEnhanced: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginTop: 16 },
+    managerDetailEnhanced: { fontSize: 14, color: '#BDD4EE', marginTop: 6, fontWeight: '600' },
+
+    rowTitle: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
+    emptyTxt: { fontSize: 14, color: '#94A3B8', fontStyle: 'italic', paddingVertical: 10 },
 });
+

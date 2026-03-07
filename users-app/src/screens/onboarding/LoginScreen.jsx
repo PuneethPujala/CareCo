@@ -4,7 +4,7 @@ import {
     KeyboardAvoidingView, ScrollView, Animated, ActivityIndicator, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Mail, Lock, Eye, EyeOff, HeartPulse, AlertCircle } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, HeartPulse, AlertCircle, Smartphone, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { colors } from '../../theme';
 import * as Google from 'expo-auth-session/providers/google';
@@ -27,6 +27,10 @@ export default function LoginScreen({ navigation }) {
     const [errorText, setErrorText] = useState('');
     const [emailFocused, setEmailFocused] = useState(false);
     const [passFocused, setPassFocused] = useState(false);
+
+    // Refs for programmatic focus
+    const emailRef = useRef(null);
+    const passwordRef = useRef(null);
 
     // Animations
     const heroAnim = useRef(new Animated.Value(-10)).current;
@@ -101,38 +105,56 @@ export default function LoginScreen({ navigation }) {
     };
 
     return (
-        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
+        <KeyboardAvoidingView
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: Platform.OS === 'ios' ? 100 : 150 }}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+            >
 
                 {/* Hero Section */}
                 <Animated.View style={{ transform: [{ translateY: heroAnim }], opacity: heroOpacity }}>
-                    <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-                        <View style={styles.decorativeCircle} />
-
-                        <Text style={styles.logoText}>CareCo</Text>
+                    <LinearGradient
+                        colors={['#0A2463', '#3A86FF']}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        style={styles.hero}
+                    >
+                        <View style={styles.decorativeCircle1} />
+                        <View style={styles.decorativeCircle2} />
 
                         <View style={styles.heroIconWrap}>
-                            <HeartPulse size={56} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
+                            <HeartPulse size={48} color="#FFFFFF" strokeWidth={1.5} />
                         </View>
-
                         <Text style={styles.heroTitle}>Welcome Back</Text>
-                        <Text style={styles.heroSubtitle}>Log in to your care dashboard</Text>
+                        <Text style={styles.heroSubtitle}>Your health journey continues here</Text>
                     </LinearGradient>
                 </Animated.View>
 
                 {/* Form Card */}
                 <Animated.View style={[styles.formCard, { transform: [{ translateY: cardAnim }], opacity: cardOpacity }]}>
 
-                    {/* Google Login */}
-                    <Pressable style={styles.googleBtn} onPress={() => promptAsync()} disabled={!request || loading}>
-                        <Text style={styles.googleG}>G</Text>
-                        <Text style={styles.googleBtnText}>Continue with Google</Text>
-                    </Pressable>
+                    {/* Social/Alt Logins */}
+                    <View style={styles.socialRowPremium}>
+                        <Pressable style={styles.socialBtnPremium} onPress={() => promptAsync()} disabled={!request || loading}>
+                            <Text style={styles.googleG}>G</Text>
+                            <Text style={styles.socialBtnTextPremium}>Google</Text>
+                        </Pressable>
+                        <Pressable style={styles.socialBtnPremium} onPress={() => { }} disabled={loading}>
+                            <Smartphone size={20} color="#64748B" />
+                            <Text style={styles.socialBtnTextPremium}>Mobile</Text>
+                        </Pressable>
+                    </View>
 
                     {/* Divider */}
-                    <View style={styles.dividerRow}>
+                    <View style={styles.dividerRowPremium}>
                         <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>or continue with email</Text>
+                        <Text style={styles.dividerText}>OR LOGIN WITH EMAIL</Text>
                         <View style={styles.dividerLine} />
                     </View>
 
@@ -147,9 +169,13 @@ export default function LoginScreen({ navigation }) {
                     {/* Email Field */}
                     <View style={styles.fieldGroup}>
                         <Text style={styles.label}>Email Address</Text>
-                        <View style={[styles.inputWrap, emailFocused && styles.inputFocused]}>
+                        <Pressable
+                            style={[styles.inputWrap, emailFocused && styles.inputFocused]}
+                            onPress={() => emailRef.current?.focus()}
+                        >
                             <Mail size={18} color="#94A3B8" style={{ marginRight: 10 }} />
                             <TextInput
+                                ref={emailRef}
                                 style={styles.textInput}
                                 placeholder="name@example.com"
                                 placeholderTextColor="#94A3B8"
@@ -159,16 +185,21 @@ export default function LoginScreen({ navigation }) {
                                 keyboardType="email-address"
                                 onFocus={() => setEmailFocused(true)}
                                 onBlur={() => setEmailFocused(false)}
+                                blurOnSubmit={false}
                             />
-                        </View>
+                        </Pressable>
                     </View>
 
                     {/* Password Field */}
                     <View style={styles.fieldGroup}>
                         <Text style={styles.label}>Password</Text>
-                        <View style={[styles.inputWrap, passFocused && styles.inputFocused]}>
+                        <Pressable
+                            style={[styles.inputWrap, passFocused && styles.inputFocused]}
+                            onPress={() => passwordRef.current?.focus()}
+                        >
                             <Lock size={18} color="#94A3B8" style={{ marginRight: 10 }} />
                             <TextInput
+                                ref={passwordRef}
                                 style={styles.textInput}
                                 placeholder="Enter password"
                                 placeholderTextColor="#94A3B8"
@@ -178,10 +209,10 @@ export default function LoginScreen({ navigation }) {
                                 onFocus={() => setPassFocused(true)}
                                 onBlur={() => setPassFocused(false)}
                             />
-                            <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
-                                {showPassword ? <Eye size={18} color="#94A3B8" /> : <EyeOff size={18} color="#94A3B8" />}
+                            <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={12}>
+                                {showPassword ? <Eye size={18} color="#3A86FF" /> : <EyeOff size={18} color="#94A3B8" />}
                             </Pressable>
-                        </View>
+                        </Pressable>
                     </View>
 
                     {/* Forgot Password */}
@@ -191,14 +222,23 @@ export default function LoginScreen({ navigation }) {
 
                     {/* Login Button */}
                     <Pressable style={[styles.primaryBtn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading}>
-                        {loading ? (
-                            <View style={styles.loadingRow}>
-                                <ActivityIndicator size="small" color="#FFFFFF" />
-                                <Text style={styles.primaryBtnText}>  Logging in...</Text>
-                            </View>
-                        ) : (
-                            <Text style={styles.primaryBtnText}>Log In</Text>
-                        )}
+                        <LinearGradient
+                            colors={['#3A86FF', '#1E5FAD']}
+                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                            style={styles.primaryBtnGradient}
+                        >
+                            {loading ? (
+                                <View style={styles.loadingRow}>
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                    <Text style={styles.primaryBtnText}>  Verifying...</Text>
+                                </View>
+                            ) : (
+                                <>
+                                    <Text style={styles.primaryBtnText}>Sign In to Dashboard</Text>
+                                    <ChevronRight size={20} color="#FFFFFF" />
+                                </>
+                            )}
+                        </LinearGradient>
                     </Pressable>
 
                     {/* Sign Up Link */}
@@ -216,96 +256,105 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F4F7FB' },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
 
-    // ─── Hero ─────────────────────────
+    // ─── Hero Section ────────────────
     hero: {
-        height: 260,
-        borderBottomLeftRadius: 36,
-        borderBottomRightRadius: 36,
+        height: 280,
+        borderBottomLeftRadius: 40,
+        borderBottomRightRadius: 40,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 60 : 44,
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
         overflow: 'hidden',
     },
-    decorativeCircle: {
-        position: 'absolute', top: -35, right: -35,
-        width: 140, height: 140, borderRadius: 70,
+    decorativeCircle1: {
+        position: 'absolute', top: -50, right: -50,
+        width: 180, height: 180, borderRadius: 90,
         backgroundColor: 'rgba(255,255,255,0.08)',
     },
-    logoText: { fontSize: 16, fontWeight: '700', color: 'rgba(255,255,255,0.7)', letterSpacing: 1, marginBottom: 16 },
-    heroIconWrap: { marginBottom: 12 },
-    heroTitle: { fontSize: 28, fontWeight: '700', color: '#FFFFFF', marginBottom: 6 },
-    heroSubtitle: { fontSize: 14, fontWeight: '400', color: '#BDD4EE' },
-
-    // ─── Form Card ────────────────────
-    formCard: {
-        marginTop: -24,
-        marginHorizontal: 16,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        paddingHorizontal: 20,
-        paddingTop: 24,
-        paddingBottom: 32,
-        shadowColor: 'rgba(10,36,99,0.12)',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 1,
-        shadowRadius: 24,
-        elevation: 8,
+    decorativeCircle2: {
+        position: 'absolute', bottom: -30, left: -40,
+        width: 120, height: 120, borderRadius: 60,
+        backgroundColor: 'rgba(255,255,255,0.05)',
     },
-
-    // ─── Google ───────────────────────
-    googleBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1.5, borderColor: '#BDD4EE',
-        borderRadius: 12, height: 48,
+    heroIconWrap: {
+        width: 80, height: 80, borderRadius: 24,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        alignItems: 'center', justifyContent: 'center',
         marginBottom: 20,
-        shadowColor: 'rgba(0,0,0,0.08)', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
     },
-    googleG: { fontSize: 20, fontWeight: '700', color: '#4285F4', marginRight: 10 },
-    googleBtnText: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
+    heroTitle: { fontSize: 32, fontWeight: '800', color: '#FFFFFF' },
+    heroSubtitle: { fontSize: 15, fontWeight: '500', color: 'rgba(255,255,255,0.8)', marginTop: 4 },
 
-    // ─── Divider ──────────────────────
-    dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    // ─── Form Card Overlay ───────────
+    formCard: {
+        marginTop: -30,
+        marginHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 30,
+        paddingHorizontal: 24,
+        paddingTop: 32,
+        paddingBottom: 30,
+        shadowColor: 'rgba(0,0,0,0.1)',
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 1,
+        shadowRadius: 30,
+        elevation: 10,
+        marginBottom: 40,
+        zIndex: 5, // Ensure it's above hero for touches
+    },
+
+    socialRowPremium: { flexDirection: 'row', gap: 16, marginBottom: 32 },
+    socialBtnPremium: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1, borderColor: '#E2E8F0',
+        borderRadius: 18, height: 60, gap: 12
+    },
+    socialBtnTextPremium: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+    googleG: { fontSize: 20, fontWeight: '800', color: '#4285F4' },
+
+    dividerRowPremium: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, paddingHorizontal: 10 },
     dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-    dividerText: { marginHorizontal: 12, fontSize: 12, color: '#94A3B8' },
+    dividerText: { marginHorizontal: 16, fontSize: 11, color: '#94A3B8', fontWeight: '800', letterSpacing: 1.5 },
 
-    // ─── Error ────────────────────────
-    errorBox: {
-        flexDirection: 'row', alignItems: 'center', gap: 8,
-        backgroundColor: '#FEE2E2', borderRadius: 8, padding: 12, marginBottom: 16,
-    },
-    errorMsg: { color: colors.danger, fontSize: 13, flex: 1 },
-
-    // ─── Fields ───────────────────────
-    fieldGroup: { marginBottom: 16 },
-    label: { fontSize: 13, fontWeight: '600', color: '#4A5568', marginBottom: 6 },
+    // ─── Fields ──────────────────────
+    fieldGroup: { marginBottom: 20 },
+    label: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 10, marginLeft: 2 },
     inputWrap: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#F4F7FB',
-        borderWidth: 1.5, borderColor: '#BDD4EE',
-        borderRadius: 12, height: 52,
-        paddingHorizontal: 14,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1.5, borderColor: '#F1F5F9',
+        borderRadius: 18, height: 64,
+        paddingHorizontal: 20,
     },
-    inputFocused: { borderColor: '#3A86FF', backgroundColor: '#FFFFFF' },
-    textInput: { flex: 1, fontSize: 15, color: '#1A202C' },
+    inputFocused: { borderColor: '#3A86FF', shadowColor: '#3A86FF', shadowOpacity: 0.05, shadowRadius: 15, elevation: 4 },
+    textInput: { flex: 1, fontSize: 16, color: '#1E293B', fontWeight: '600' },
 
-    // ─── Forgot ───────────────────────
-    forgotRow: { alignSelf: 'flex-end', marginTop: -8, marginBottom: 20 },
-    forgotText: { fontSize: 13, fontWeight: '600', color: '#3A86FF' },
+    errorBox: {
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, marginBottom: 24,
+        borderWidth: 1, borderColor: '#FEE2E2'
+    },
+    errorMsg: { color: '#DC2626', fontSize: 14, fontWeight: '600', flex: 1 },
 
-    // ─── Primary Button ───────────────
+    forgotRow: { alignSelf: 'flex-end', marginTop: -10, marginBottom: 32 },
+    forgotText: { fontSize: 14, fontWeight: '700', color: '#3A86FF' },
+
     primaryBtn: {
-        backgroundColor: '#3A86FF', borderRadius: 12, height: 52,
-        alignItems: 'center', justifyContent: 'center', marginTop: 8,
-        shadowColor: 'rgba(58,134,255,0.35)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
+        borderRadius: 20, height: 68,
+        overflow: 'hidden',
+        shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 8,
     },
-    primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    primaryBtnGradient: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12
+    },
+    primaryBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
     loadingRow: { flexDirection: 'row', alignItems: 'center' },
 
-    // ─── Bottom Link ──────────────────
-    bottomLink: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
-    bottomLinkText: { fontSize: 14, color: '#64748B' },
-    bottomLinkAction: { fontSize: 14, fontWeight: '600', color: '#3A86FF' },
+    bottomLink: { flexDirection: 'row', justifyContent: 'center', marginTop: 40, paddingBottom: 20 },
+    bottomLinkText: { fontSize: 15, color: '#94A3B8', fontWeight: '500' },
+    bottomLinkAction: { fontSize: 15, fontWeight: '800', color: '#3A86FF' },
 });

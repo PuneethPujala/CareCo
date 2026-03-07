@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, TextInput, Alert, ActivityIndicator, Switch } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, TextInput, Alert, ActivityIndicator, Switch, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Shield, Bell, Settings, LogOut, ChevronRight, UserRound, Phone, X, Save } from 'lucide-react-native';
+import { Shield, Bell, Settings, LogOut, ChevronRight, UserRound, Phone, X, Save, ShieldCheck, Camera, CreditCard, HelpCircle } from 'lucide-react-native';
 import { colors } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../lib/api';
@@ -22,6 +22,18 @@ export default function PatientProfileScreen({ navigation }) {
     const [ecPhone, setEcPhone] = useState('');
     const [ecRelation, setEcRelation] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const staggerAnims = React.useRef([...Array(10)].map(() => new Animated.Value(0))).current;
+
+    const runAnimations = React.useCallback(() => {
+        staggerAnims.forEach(anim => anim.setValue(0));
+        Animated.stagger(80,
+            staggerAnims.map(anim =>
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+            )
+        ).start();
+    }, [staggerAnims]);
+
 
     // Edit Profile Form
     const [editName, setEditName] = useState('');
@@ -46,13 +58,15 @@ export default function PatientProfileScreen({ navigation }) {
                 }
                 setEditName(data.patient?.name || displayName || '');
                 setEditCity(data.patient?.city || '');
+                runAnimations();
             } catch (err) {
                 console.warn('Failed to load profile:', err.message);
             } finally {
                 setLoading(false);
             }
         })();
-    }, []);
+    }, [runAnimations]);
+
 
     const handleSaveEC = async () => {
         setSaving(true);
@@ -112,71 +126,91 @@ export default function PatientProfileScreen({ navigation }) {
         <View style={styles.container}>
             {/* Gradient Header */}
             <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-                <View style={styles.decorativeCircle} />
+                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
+                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
                 <Text style={styles.heroLabel}>CareCo</Text>
                 <Text style={styles.headerTitle}>My Profile</Text>
             </LinearGradient>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
                 {/* Profile Card */}
-                <View style={styles.cardInfo}>
-                    <View style={styles.avatarLarge}>
-                        <Text style={styles.avatarTxt}>{displayName?.charAt(0) || 'U'}</Text>
-                    </View>
-                    <View style={styles.infoTextGroup}>
-                        <Text style={styles.nameText}>{patient?.name || displayName || 'User'}</Text>
-                        <Text style={styles.emailText}>{userEmail || 'patient@careco.com'}</Text>
-                        {patient?.city ? <Text style={styles.cityText}>{patient.city}</Text> : null}
-                        <View style={[styles.planBadge, { backgroundColor: planBg }]}>
-                            <Text style={[styles.planBadgeText, { color: planColor }]}>{planLabel}</Text>
+                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ scale: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
+                    <View style={styles.profileCardEnhanced}>
+                        <View style={styles.profileMain}>
+                            <View style={styles.avatarLarge}>
+                                <Text style={styles.avatarTxt}>{patient?.name?.charAt(0) || displayName?.charAt(0) || 'U'}</Text>
+                                <View style={styles.editBadge}><Settings size={12} color="#FFF" /></View>
+                            </View>
+                            <View style={styles.profileInfo}>
+                                <Text style={styles.profileName}>{patient?.name || displayName || 'User'}</Text>
+                                <Text style={styles.profileEmail}>{userEmail || 'patient@careco.com'}</Text>
+                                <View style={[styles.planBadgeEnhanced, { backgroundColor: planBg }]}>
+                                    <ShieldCheck size={12} color={planColor} strokeWidth={2.5} />
+                                    <Text style={[styles.planBadgeTxt, { color: planColor }]}>{planLabel}</Text>
+                                </View>
+                            </View>
+                        </View>
+                        <View style={styles.divider} />
+                        <View style={styles.profileStats}>
+                            <View style={styles.statBox}>
+                                <Text style={styles.statVal}>Active</Text>
+                                <Text style={styles.statLabel}>Status</Text>
+                            </View>
+                            <View style={styles.statDivider} />
+                            <View style={styles.statBox}>
+                                <Text style={styles.statVal}>{patient?.created_at ? new Date(patient.created_at).getFullYear() : '2024'}</Text>
+                                <Text style={styles.statLabel}>Member</Text>
+                            </View>
                         </View>
                     </View>
-                </View>
+                </Animated.View>
 
-                <Text style={styles.sectionHeader}>SETTINGS</Text>
-                <View style={styles.settingsGroup}>
-                    <Pressable style={styles.settingRow} onPress={() => setAccountModalVisible(true)}>
-                        <View style={styles.settingIconBox}><Settings size={20} color="#64748B" /></View>
-                        <Text style={styles.settingLabel}>Account Details</Text>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                    </Pressable>
-                    <Pressable style={styles.settingRow} onPress={() => setCpModalVisible(true)}>
-                        <View style={styles.settingIconBox}><Shield size={20} color="#64748B" /></View>
-                        <Text style={styles.settingLabel}>Change Password</Text>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                    </Pressable>
-                    <Pressable style={styles.settingRow} onPress={async () => {
-                        try {
-                            await apiService.auth.resetPassword(userEmail);
-                            Alert.alert('Email Sent', 'A password reset link has been sent to your email.');
-                        } catch (err) {
-                            Alert.alert('Error', 'Failed to send password reset email.');
-                        }
-                    }}>
-                        <View style={styles.settingIconBox}><Shield size={20} color="#64748B" /></View>
-                        <Text style={styles.settingLabel}>Forgot Password? (Email)</Text>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                    </Pressable>
-                    <Pressable style={styles.settingRow} onPress={() => setEcModalVisible(true)}>
-                        <View style={styles.settingIconBox}><Phone size={20} color="#64748B" /></View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.settingLabel}>Emergency Contacts</Text>
-                            {patient?.emergency_contact?.name && (
-                                <Text style={styles.settingSub}>{patient.emergency_contact.name} ({patient.emergency_contact.relation})</Text>
-                            )}
-                        </View>
-                        <ChevronRight size={20} color="#CBD5E1" />
-                    </Pressable>
-                </View>
+                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <Text style={styles.sectionHeader}>ACCOUNT SETTINGS</Text>
+                    <View style={styles.settingsGroupEnhanced}>
+                        <Pressable style={styles.settingRowEnhanced} onPress={() => setAccountModalVisible(true)}>
+                            <View style={[styles.iconBox, { backgroundColor: '#EFF6FF' }]}><UserRound size={20} color="#3B82F6" /></View>
+                            <Text style={styles.settingLabelEnhanced}>Account Details</Text>
+                            <ChevronRight size={20} color="#CBD5E1" />
+                        </Pressable>
+                        <Pressable style={styles.settingRowEnhanced} onPress={() => setCpModalVisible(true)}>
+                            <View style={[styles.iconBox, { backgroundColor: '#F5F3FF' }]}><Shield size={20} color="#8B5CF6" /></View>
+                            <Text style={styles.settingLabelEnhanced}>Change Password</Text>
+                            <ChevronRight size={20} color="#CBD5E1" />
+                        </Pressable>
+                        <Pressable style={styles.settingRowEnhanced} onPress={() => setEcModalVisible(true)}>
+                            <View style={[styles.iconBox, { backgroundColor: '#FFF7ED' }]}><Phone size={20} color="#F97316" /></View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.settingLabelEnhanced}>Emergency Contacts</Text>
+                                {patient?.emergency_contact?.name && (
+                                    <Text style={styles.settingSubEnhanced}>{patient.emergency_contact.name} ({patient.emergency_contact.relation})</Text>
+                                )}
+                            </View>
+                            <ChevronRight size={20} color="#CBD5E1" />
+                        </Pressable>
+                    </View>
+                </Animated.View>
 
-                <View style={styles.logoutGroup}>
-                    <Pressable style={styles.logoutBtn} onPress={() => signOut()}>
-                        <LogOut size={20} color={colors.danger} strokeWidth={2.5} />
-                        <Text style={styles.logoutText}>Log Out</Text>
-                    </Pressable>
-                </View>
+                <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <Text style={[styles.sectionHeader, { marginTop: 24 }]}>APP PREFERENCES</Text>
+                    <View style={styles.settingsGroupEnhanced}>
+                        <Pressable style={styles.settingRowEnhanced}>
+                            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Bell size={20} color="#22C55E" /></View>
+                            <Text style={styles.settingLabelEnhanced}>Notifications</Text>
+                            <ChevronRight size={20} color="#CBD5E1" />
+                        </Pressable>
+                    </View>
+                </Animated.View>
 
+                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <Pressable style={styles.logoutBtnEnhanced} onPress={() => signOut()}>
+                        <LogOut size={20} color="#EF4444" strokeWidth={2.5} />
+                        <Text style={styles.logoutBtnTxtEnhanced}>Sign Out Account</Text>
+                    </Pressable>
+                    <Text style={styles.versionTxt}>v1.0.4 • Made with ♥ by CareCo</Text>
+                </Animated.View>
             </ScrollView>
+
 
             {/* Emergency Contact Edit Modal */}
             <Modal visible={ecModalVisible} animationType="slide" transparent={true} onRequestClose={() => setEcModalVisible(false)}>
@@ -299,56 +333,58 @@ export default function PatientProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFFFFF' },
     hero: {
-        height: 140,
-        borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
+        height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
         alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 56 : 38, overflow: 'hidden',
+        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
     },
-    decorativeCircle: { position: 'absolute', top: -35, right: -35, width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.08)' },
+    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
     heroLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
 
     body: { flex: 1 },
-    bodyContent: { paddingHorizontal: 16, paddingBottom: 110, paddingTop: 16 },
+    bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
 
-    cardInfo: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginTop: -20, marginBottom: 28, flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0', shadowColor: 'rgba(10,36,99,0.12)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 16, elevation: 6 },
-    avatarLarge: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginRight: 16, borderWidth: 3, borderColor: 'rgba(58,134,255,0.2)' },
-    avatarTxt: { fontSize: 24, fontWeight: '700', color: colors.accent },
-    infoTextGroup: { flex: 1, alignItems: 'flex-start' },
-    nameText: { fontSize: 20, fontWeight: '700', color: '#1A202C' },
-    emailText: { fontSize: 14, color: '#64748B', marginTop: 4 },
-    cityText: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
-    planBadge: { marginTop: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-    planBadgeText: { fontSize: 12, fontWeight: '700' },
+    profileCardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, marginBottom: 32, shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8, borderWidth: 1, borderColor: '#F1F5F9' },
+    profileMain: { flexDirection: 'row', alignItems: 'center' },
+    avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(58,134,255,0.1)' },
+    avatarTxt: { fontSize: 28, fontWeight: '800', color: colors.accent },
+    editBadge: { position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#FFF' },
+    profileInfo: { flex: 1, marginLeft: 20 },
+    profileName: { fontSize: 20, fontWeight: '800', color: '#1E293B' },
+    profileEmail: { fontSize: 14, color: '#64748B', marginTop: 4, fontWeight: '500' },
+    planBadgeEnhanced: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginTop: 10 },
+    planBadgeTxt: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
 
-    sectionHeader: { fontSize: 13, fontWeight: '600', color: '#94A3B8', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12, marginLeft: 4 },
+    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 20 },
+    profileStats: { flexDirection: 'row', justifyContent: 'space-around' },
+    statBox: { alignItems: 'center' },
+    statVal: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+    statLabel: { fontSize: 12, color: '#94A3B8', marginTop: 4, fontWeight: '600' },
+    statDivider: { width: 1, backgroundColor: '#F1F5F9', height: '80%' },
 
-    settingsGroup: { backgroundColor: '#FFFFFF', borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: '#E2E8F0', marginBottom: 32, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-    settingRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-    settingIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F4F7FB', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-    settingLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1A202C' },
-    settingSub: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+    sectionHeader: { fontSize: 13, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
+    settingsGroupEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 20, mb: 24, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F8FAFC', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 2 },
+    settingRowEnhanced: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1.5, borderBottomColor: '#F8FAFC' },
+    iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    settingLabelEnhanced: { flex: 1, fontSize: 15, fontWeight: '700', color: '#334155' },
+    settingSubEnhanced: { fontSize: 12, color: '#94A3B8', marginTop: 2, fontWeight: '500' },
 
-    logoutGroup: { alignItems: 'center' },
-    logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', paddingVertical: 14, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' },
-    logoutText: { fontSize: 16, fontWeight: '700', color: colors.danger },
+    logoutBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#FFF1F2', paddingVertical: 18, borderRadius: 20, marginTop: 40, borderWidth: 1.5, borderColor: '#FFE4E6' },
+    logoutBtnTxtEnhanced: { fontSize: 16, fontWeight: '800', color: '#E11D48' },
+    versionTxt: { textAlign: 'center', color: '#94A3B8', fontSize: 12, marginTop: 20, fontWeight: '600' },
 
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalContent: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24, width: '100%', maxWidth: 400, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 10 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    modalTitle: { fontSize: 20, fontWeight: '700', color: '#1A202C' },
-    inputLabel: { fontSize: 13, fontWeight: '600', color: '#64748B', marginBottom: 6, marginTop: 12 },
-    input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, color: '#1A202C' },
-    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 14, marginTop: 24 },
-    saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, maxHeight: '85%' },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
+    inputLabel: { fontSize: 14, fontWeight: '700', color: '#64748B', marginBottom: 8, marginTop: 16 },
+    input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#1E293B', fontWeight: '600' },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.accent, borderRadius: 16, paddingVertical: 16, marginTop: 32, shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+    saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
-    detailLabel: { fontSize: 14, color: '#64748B' },
-    detailValue: { fontSize: 14, fontWeight: '600', color: '#1A202C' },
-    line: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 4 },
-    toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
-    toggleTitle: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
-    toggleDesc: { fontSize: 13, color: '#94A3B8', marginTop: 2 },
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16 },
-    actionRowText: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
+    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
+    detailLabel: { fontSize: 15, color: '#64748B', fontWeight: '500' },
+    detailValue: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+    line: { height: 1.5, backgroundColor: '#F8FAFC', marginVertical: 4 },
 });
+
