@@ -108,20 +108,20 @@ export default function MyCallerScreen({ navigation }) {
                     <Text style={styles.sectionHeader}>YOUR CARE TEAM</Text>
 
                     {caller ? (
-                        <Pressable style={styles.callerCardEnhanced} onPress={() => setDetailVisible(true)}>
-                            <View style={styles.avatarWrapSmall}>
-                                <View style={styles.avatarSmall}><Text style={styles.avatarTxtSmall}>{caller.name?.charAt(0)}</Text></View>
+                        <Pressable style={[styles.callerCardEnhanced, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => setDetailVisible(true)}>
+                            <View style={{ position: 'relative', marginRight: 16 }}>
+                                <View style={styles.avatarEnhanced}><Text style={styles.avatarTxt}>{caller.name?.charAt(0)}</Text></View>
                                 <View style={styles.onlineDot} />
                             </View>
-                            <View style={styles.callerListContent}>
-                                <Text style={styles.callerListName}>{caller.name}</Text>
-                                <View style={styles.idRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.callerName}>{caller.name}</Text>
+                                <View style={styles.relationRow}>
                                     <ShieldCheck size={14} color="#16A34A" />
-                                    <Text style={styles.callerListSub}>ID: {caller.employee_id} • {caller.experience_years} yrs</Text>
+                                    <Text style={styles.callerRelation}>ID: {caller.employee_id} • {caller.experience_years} yrs</Text>
                                 </View>
                                 <View style={styles.langRow}>
                                     <Globe size={13} color={colors.accent} />
-                                    <Text style={styles.callerListBottom}>{caller.languages_spoken?.join(', ')}</Text>
+                                    <Text style={[styles.callerRelation, { fontWeight: '500' }]}>{caller.languages_spoken?.join(', ')}</Text>
                                 </View>
                             </View>
                             <ChevronRight size={20} color="#CBD5E1" />

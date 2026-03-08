@@ -1,34 +1,50 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable, Animated } from 'react-native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Users, Pill, ShieldPlus, UserCircle, Menu, Bell } from 'lucide-react-native';
-import { useAuth } from '../context/AuthContext';
-import { colors } from '../theme';
+import React, { useEffect, useRef } from "react";
+import {
+    View,
+    Text,
+    StyleSheet,
+    Platform,
+    Pressable,
+    Animated,
+    ActivityIndicator,
+} from "react-native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import {
+    LayoutDashboard,
+    Users,
+    Pill,
+    ShieldPlus,
+    UserCircle,
+    Menu,
+    Bell,
+} from "lucide-react-native";
+import { useAuth } from "../context/AuthContext";
+import { colors } from "../theme";
 
 // Onboarding screens
-import SplashScreen from '../screens/onboarding/SplashScreen';
-import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
-import PatientSignupScreen from '../screens/onboarding/PatientSignupScreen';
-import LoginScreen from '../screens/onboarding/LoginScreen';
-import GoogleOnboardingScreen from '../screens/onboarding/GoogleOnboardingScreen';
+import SplashScreen from "../screens/onboarding/SplashScreen";
+import WelcomeScreen from "../screens/onboarding/WelcomeScreen";
+import PatientSignupScreen from "../screens/onboarding/PatientSignupScreen";
+import LoginScreen from "../screens/onboarding/LoginScreen";
+import GoogleOnboardingScreen from "../screens/onboarding/GoogleOnboardingScreen";
 
 // Patient screens
-import PatientHomeScreen from '../screens/patient/HomeScreen';
-import MyCallerScreen from '../screens/patient/MyCallerScreen';
-import MedicationsScreen from '../screens/patient/MedicationsScreen';
-import HealthProfileScreen from '../screens/patient/HealthProfileScreen';
-import NotificationsScreen from '../screens/patient/NotificationsScreen';
-import PatientProfileScreen from '../screens/patient/ProfileScreen';
-import SubscribePlansScreen from '../screens/patient/SubscribePlansScreen';
-import PaymentScreen from '../screens/patient/PaymentScreen';
-import WaitingScreen from '../screens/patient/WaitingScreen';
+import PatientHomeScreen from "../screens/patient/HomeScreen";
+import MyCallerScreen from "../screens/patient/MyCallerScreen";
+import MedicationsScreen from "../screens/patient/MedicationsScreen";
+import HealthProfileScreen from "../screens/patient/HealthProfileScreen";
+import NotificationsScreen from "../screens/patient/NotificationsScreen";
+import PatientProfileScreen from "../screens/patient/ProfileScreen";
+import SubscribePlansScreen from "../screens/patient/SubscribePlansScreen";
+import PaymentScreen from "../screens/patient/PaymentScreen";
+import WaitingScreen from "../screens/patient/WaitingScreen";
 
 // Caller screens
-import CallerHomeScreen from '../screens/caller/HomeScreen';
-import CallerPatientsScreen from '../screens/caller/PatientsScreen';
-import ActivityFeedScreen from '../screens/caller/ActivityFeedScreen';
-import CallerProfileScreen from '../screens/caller/ProfileScreen';
+import CallerHomeScreen from "../screens/caller/HomeScreen";
+import CallerPatientsScreen from "../screens/caller/PatientsScreen";
+import ActivityFeedScreen from "../screens/caller/ActivityFeedScreen";
+import CallerProfileScreen from "../screens/caller/ProfileScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -45,13 +61,15 @@ const TabIconWrapper = ({ focused, IconConfig }) => {
     }, [focused]);
 
     return (
-        <Animated.View style={[
-            styles.tabSlot,
-            focused && styles.tabSlotActive,
-            { transform: [{ scale: scaleAnim }] }
-        ]}>
+        <Animated.View
+            style={[
+                styles.tabSlot,
+                focused && styles.tabSlotActive,
+                { transform: [{ scale: scaleAnim }] },
+            ]}
+        >
             <IconConfig
-                color={focused ? '#FFFFFF' : '#94A3B8'}
+                color={focused ? "#FFFFFF" : "#94A3B8"}
                 size={24}
                 strokeWidth={focused ? 2.5 : 2}
             />
@@ -63,39 +81,78 @@ const tabScreenOptions = {
     headerShown: false,
     tabBarShowLabel: false,
     tabBarStyle: {
-        backgroundColor: '#FFFFFF',
-        position: 'absolute',
+        backgroundColor: "#FFFFFF",
+        position: "absolute",
         bottom: 24,
-        alignSelf: 'center', // Force horizontal centering
-        width: '85%', // Compact width to look like a floating pill
+        left: 24,
+        right: 24,
         borderRadius: 32,
         borderTopWidth: 0,
         height: 64,
         elevation: 12,
-        shadowColor: '#000000',
+        shadowColor: "#000000",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.08,
         shadowRadius: 12,
         borderWidth: 1,
-        borderColor: '#F1F5F9', // Slightly softer border
+        borderColor: "#F1F5F9", // Slightly softer border
         paddingBottom: 0,
         paddingTop: 0,
-        display: 'flex',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center', // Center the content group
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center", // Center the content group
     },
 };
-
 
 function PatientTabNavigator() {
     return (
         <Tab.Navigator screenOptions={tabScreenOptions}>
-            <Tab.Screen name="PatientHome" component={PatientHomeScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={LayoutDashboard} /> }} />
-            <Tab.Screen name="MyCaller" component={MyCallerScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={Users} /> }} />
-            <Tab.Screen name="Medications" component={MedicationsScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={Pill} /> }} />
-            <Tab.Screen name="HealthProfile" component={HealthProfileScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={ShieldPlus} /> }} />
-            <Tab.Screen name="Profile" component={PatientProfileScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={UserCircle} /> }} />
+            <Tab.Screen
+                name="PatientHome"
+                component={PatientHomeScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={LayoutDashboard} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="MyCaller"
+                component={MyCallerScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={Users} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Medications"
+                component={MedicationsScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={Pill} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="HealthProfile"
+                component={HealthProfileScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={ShieldPlus} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Profile"
+                component={PatientProfileScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={UserCircle} />
+                    ),
+                }}
+            />
         </Tab.Navigator>
     );
 }
@@ -103,10 +160,42 @@ function PatientTabNavigator() {
 function CallerTabNavigator() {
     return (
         <Tab.Navigator screenOptions={tabScreenOptions}>
-            <Tab.Screen name="CallerHome" component={CallerHomeScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={LayoutDashboard} /> }} />
-            <Tab.Screen name="CallerPatients" component={CallerPatientsScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={Users} /> }} />
-            <Tab.Screen name="ActivityFeed" component={ActivityFeedScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={ShieldPlus} /> }} />
-            <Tab.Screen name="CallerProfile" component={CallerProfileScreen} options={{ tabBarIcon: ({ focused }) => <TabIconWrapper focused={focused} IconConfig={Menu} /> }} />
+            <Tab.Screen
+                name="CallerHome"
+                component={CallerHomeScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={LayoutDashboard} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="CallerPatients"
+                component={CallerPatientsScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={Users} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="ActivityFeed"
+                component={ActivityFeedScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={ShieldPlus} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="CallerProfile"
+                component={CallerProfileScreen}
+                options={{
+                    tabBarIcon: ({ focused }) => (
+                        <TabIconWrapper focused={focused} IconConfig={Menu} />
+                    ),
+                }}
+            />
         </Tab.Navigator>
     );
 }
@@ -122,7 +211,10 @@ function LoadingScreen() {
 
 // 1. Logged out flow
 const AuthStack = () => (
-    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Login">
+    <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName="Login"
+    >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PatientSignup" component={PatientSignupScreen} />
         <Stack.Screen name="Splash" component={SplashScreen} />
@@ -140,7 +232,11 @@ const GoogleStack = () => (
 // 3. Patient already has account but needs setup/payment
 const PatientOnboardingStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="PatientSignupOnboarding" component={PatientSignupScreen} initialParams={{ step: 2 }} />
+        <Stack.Screen
+            name="PatientSignupOnboarding"
+            component={PatientSignupScreen}
+            initialParams={{ step: 2 }}
+        />
     </Stack.Navigator>
 );
 
@@ -152,7 +248,11 @@ const MainAppStack = ({ isCaller }) => (
         ) : (
             <>
                 <Stack.Screen name="PatientTabs" component={PatientTabNavigator} />
-                <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ presentation: 'modal' }} />
+                <Stack.Screen
+                    name="Notifications"
+                    component={NotificationsScreen}
+                    options={{ presentation: "modal" }}
+                />
                 <Stack.Screen name="SubscribePlans" component={SubscribePlansScreen} />
                 <Stack.Screen name="Payment" component={PaymentScreen} />
                 <Stack.Screen name="WaitingRoom" component={WaitingScreen} />
@@ -163,7 +263,7 @@ const MainAppStack = ({ isCaller }) => (
 
 export default function AppNavigator() {
     const { initializing, isAuthenticated, userRole, user, profile } = useAuth();
-    const isCaller = userRole === 'caretaker' || userRole === 'caller';
+    const isCaller = userRole === "caretaker" || userRole === "caller";
 
     if (initializing) {
         return <LoadingScreen />;
@@ -181,7 +281,7 @@ export default function AppNavigator() {
 
     // Branch 3: Patient in Onboarding/Payment flow
     // isAuthenticated is true ONLY if !isOnboarding
-    if (!isAuthenticated && userRole === 'patient') {
+    if (!isAuthenticated && userRole === "patient") {
         return <PatientOnboardingStack />;
     }
 
@@ -190,24 +290,33 @@ export default function AppNavigator() {
 }
 
 const styles = StyleSheet.create({
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-    loadingText: { color: colors.primary, marginTop: 12, fontSize: 16, fontWeight: '500' },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: colors.background,
+    },
+    loadingText: {
+        color: colors.primary,
+        marginTop: 12,
+        fontSize: 16,
+        fontWeight: "500",
+    },
 
     tabSlot: {
         width: 50,
         height: 50,
         borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         marginHorizontal: 8, // Ensure spacing between centered items
     },
     tabSlotActive: {
-        backgroundColor: '#3A86FF',
-        shadowColor: '#3A86FF',
+        backgroundColor: "#3A86FF",
+        shadowColor: "#3A86FF",
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.4,
         shadowRadius: 12,
         elevation: 10,
     },
 });
-
