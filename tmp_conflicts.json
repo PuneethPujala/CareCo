@@ -1,0 +1,34 @@
+[
+  {
+    "path": ".env.example",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/package-lock.json",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/package.json",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/src/context/AuthContext.jsx",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/src/navigation/AppNavigator.jsx",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/src/screens/onboarding/LoginScreen.jsx",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/src/screens/onboarding/PatientSignupScreen.jsx",
+    "conflicts": []
+  },
+  {
+    "path": "users-app/src/screens/patient/HomeScreen.jsx",
+    "conflicts": []
+  }
+]

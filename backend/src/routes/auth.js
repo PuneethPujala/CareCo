@@ -10,7 +10,9 @@ const { authenticate } = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
 const { checkPasswordChange } = require('../middleware/checkPasswordChange');
 const { logEvent, logSecurityEvent } = require('../services/auditService');
-const { sendTempPasswordEmail, sendPasswordChangedEmail } = require('../services/emailService');
+const crypto = require('crypto');
+const { sendTempPasswordEmail, sendPasswordChangedEmail, sendOtpEmail } = require('../services/emailService');
+const PasswordResetOtp = require('../models/PasswordResetOtp');
 
 const router = express.Router();
 
@@ -132,22 +134,53 @@ router.post('/register', async (req, res) => {
           details: authError.message
         });
       }
+      
       finalUid = authData.user.id;
       authDataPayload = authData.user;
+
+      // For patients, ensure email is marked as confirmed in Supabase
+      if (role === 'patient') {
+        try {
+          const { error: updateError } = await supabase.auth.admin.updateUserById(finalUid, {
+            email_confirm: true
+          });
+          if (updateError) {
+            console.warn('Failed to update email confirmation status:', updateError.message);
+          }
+        } catch (err) {
+          console.warn('Error confirming patient email in Supabase:', err.message);
+        }
+      }
     }
 
-    // Create profile in MongoDB
-    const profile = new Profile({
-      supabaseUid: finalUid,
-      email,
-      fullName,
-      role,
-      organizationId: organizationId || null,
-      phone: phone || null,
-      emailVerified: true // Set based on Supabase email verification status
+    // Create or update profile in MongoDB
+    // First check if profile already exists with this email and role
+    let profile = await Profile.findOne({
+      email: email.toLowerCase().trim(),
+      role: role,
+      isActive: true
     });
 
-    await profile.save();
+    if (!profile) {
+      // Profile doesn't exist, create it
+      profile = new Profile({
+        supabaseUid: finalUid,
+        email,
+        fullName,
+        role,
+        organizationId: organizationId || null,
+        phone: phone || null,
+        emailVerified: true // Set based on Supabase email verification status
+      });
+
+      await profile.save();
+    } else {
+      // Profile exists, update the Supabase UID if different
+      if (profile.supabaseUid !== finalUid) {
+        profile.supabaseUid = finalUid;
+        await profile.save();
+      }
+    }
 
     if (role === 'patient') {
       const patient = new Patient({
@@ -156,6 +189,12 @@ router.post('/register', async (req, res) => {
         name: fullName || email.split('@')[0],
         city: req.body.city || 'Unknown',
         organization_id: organizationId || new mongoose.Types.ObjectId(),
+        subscription: {
+          status: 'inactive',
+          plan: 'free'
+        },
+        paid: 0,
+        profile_complete: false,
       });
       await patient.save();
     }
@@ -767,6 +806,170 @@ router.put('/me', authenticate, checkPasswordChange, authorize('profile', 'updat
       error: 'Failed to update profile',
       details: error.message
     });
+  }
+});
+
+// ─── OTP Password Reset Flow ─────────────────────────────────────────────────
+
+/**
+ * POST /api/auth/forgot-password
+ * Generates a 6-digit OTP, hashes it, saves to DB, and emails it
+ */
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user exists
+    const profile = await Profile.findOne({ email: normalizedEmail });
+    if (!profile) {
+      // Don't reveal if email exists — return success anyway
+      return res.json({ success: true, message: 'If this email is registered, you will receive a reset code.' });
+    }
+
+    // Delete any previous OTPs for this email
+    await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+
+    // Generate 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    // Save with 10-minute expiry
+    await PasswordResetOtp.create({
+      email: normalizedEmail,
+      otpHash,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    // Send OTP email
+    await sendOtpEmail(normalizedEmail, otp);
+
+    console.log(`📧 OTP sent to ${normalizedEmail}`);
+    res.json({ success: true, message: 'If this email is registered, you will receive a reset code.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+});
+
+/**
+ * POST /api/auth/verify-otp
+ * Validates the OTP and returns a short-lived reset token
+ */
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const record = await PasswordResetOtp.findOne({ email: normalizedEmail });
+    if (!record) {
+      return res.status(400).json({ error: 'OTP expired or not found. Please request a new one.' });
+    }
+
+    if (new Date() > record.expiresAt) {
+      await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+      return res.status(400).json({ error: 'OTP has expired. Please request a new one.' });
+    }
+
+    const isValid = await bcrypt.compare(otp, record.otpHash);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid OTP. Please try again.' });
+    }
+
+    // OTP is valid — generate a short-lived reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = await bcrypt.hash(resetToken, 10);
+
+    // Replace the OTP record with the reset token (reuse same doc, 5 min expiry)
+    record.otpHash = resetTokenHash;
+    record.expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await record.save();
+
+    // Delete the OTP so it can't be reused
+    res.json({ success: true, resetToken });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Failed to verify OTP' });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password-otp
+ * Uses the reset token to set a new password via Supabase Admin
+ */
+router.post('/reset-password-otp', async (req, res) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+    if (!email || !resetToken || !newPassword) {
+      return res.status(400).json({ error: 'Email, reset token, and new password are required' });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Validate password complexity
+    const pwdErrors = validatePasswordComplexity(newPassword);
+    if (pwdErrors.length > 0) {
+      return res.status(400).json({ error: pwdErrors.join(', ') });
+    }
+
+    // Find and validate the reset token
+    const record = await PasswordResetOtp.findOne({ email: normalizedEmail });
+    if (!record) {
+      return res.status(400).json({ error: 'Reset session expired. Please start over.' });
+    }
+
+    if (new Date() > record.expiresAt) {
+      await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+      return res.status(400).json({ error: 'Reset session expired. Please start over.' });
+    }
+
+    const isValid = await bcrypt.compare(resetToken, record.otpHash);
+    if (!isValid) {
+      return res.status(400).json({ error: 'Invalid reset session. Please start over.' });
+    }
+
+    // Find the profile to get the Supabase UID
+    const profile = await Profile.findOne({ email: normalizedEmail });
+    if (!profile) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+
+    // Initialize Supabase Admin client
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    // Update password via Supabase Admin
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      profile.supabaseUid,
+      { password: newPassword }
+    );
+
+    if (updateError) {
+      console.error('Supabase password update error:', updateError);
+      return res.status(500).json({ error: 'Failed to update password' });
+    }
+
+    // Clean up
+    await PasswordResetOtp.deleteMany({ email: normalizedEmail });
+
+    // Update password history in profile
+    const hashedPwd = await bcrypt.hash(newPassword, 12);
+    profile.passwordHistory = [...(profile.passwordHistory || []).slice(-4), hashedPwd];
+    profile.mustChangePassword = false;
+    await profile.save();
+
+    console.log(`✅ Password reset via OTP for ${normalizedEmail}`);
+    res.json({ success: true, message: 'Password has been reset successfully.' });
+  } catch (error) {
+    console.error('Reset password OTP error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 

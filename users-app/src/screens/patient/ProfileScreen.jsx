@@ -60,7 +60,7 @@ export default function PatientProfileScreen({ navigation }) {
                 setEditCity(data.patient?.city || '');
                 runAnimations();
             } catch (err) {
-                console.warn('Failed to load profile:', err.message);
+                // Silently handle error or report to telemetry
             } finally {
                 setLoading(false);
             }

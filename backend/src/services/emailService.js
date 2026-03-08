@@ -4,54 +4,54 @@ const nodemailer = require('nodemailer');
 let transporter;
 
 const getTransporter = () => {
-    if (transporter) return transporter;
+  if (transporter) return transporter;
 
-    // Use SMTP config from environment variables
-    transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-        },
-    });
+  // Use SMTP config from environment variables
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
 
-    return transporter;
+  return transporter;
 };
 
 /**
  * Send a generic email
  */
 const sendEmail = async (to, subject, html) => {
-    const transport = getTransporter();
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@careconnect.com';
+  const transport = getTransporter();
+  const fromEmail = process.env.FROM_EMAIL || 'noreply@careconnect.com';
 
-    const mailOptions = {
-        from: `"CareConnect" <${fromEmail}>`,
-        to,
-        subject,
-        html,
-    };
+  const mailOptions = {
+    from: `"CareConnect" <${fromEmail}>`,
+    to,
+    subject,
+    html,
+  };
 
-    try {
-        const info = await transport.sendMail(mailOptions);
-        console.log(`📧 Email sent to ${to}: ${info.messageId}`);
-        return info;
-    } catch (error) {
-        console.error(`❌ Failed to send email to ${to}:`, error.message);
-        // Don't throw — email failure should not block account creation
-        return null;
-    }
+  try {
+    const info = await transport.sendMail(mailOptions);
+    console.log(`📧 Email sent to ${to}: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error(`❌ Failed to send email to ${to}:`, error.message);
+    // Don't throw — email failure should not block account creation
+    return null;
+  }
 };
 
 /**
  * Send temporary password email to newly created user
  */
 const sendTempPasswordEmail = async (to, fullName, tempPassword, roleName) => {
-    const loginUrl = process.env.FRONTEND_URL || 'https://app.careconnect.com';
+  const loginUrl = process.env.FRONTEND_URL || 'https://app.careconnect.com';
 
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -102,14 +102,14 @@ const sendTempPasswordEmail = async (to, fullName, tempPassword, roleName) => {
     </html>
   `;
 
-    return sendEmail(to, 'CareConnect — Your Account Has Been Created', html);
+  return sendEmail(to, 'CareConnect — Your Account Has Been Created', html);
 };
 
 /**
  * Send password changed confirmation email
  */
 const sendPasswordChangedEmail = async (to, fullName) => {
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -142,11 +142,61 @@ const sendPasswordChangedEmail = async (to, fullName) => {
     </html>
   `;
 
-    return sendEmail(to, 'CareConnect — Password Changed', html);
+  return sendEmail(to, 'CareConnect — Password Changed', html);
 };
 
 module.exports = {
-    sendEmail,
-    sendTempPasswordEmail,
-    sendPasswordChangedEmail,
+  sendEmail,
+  sendTempPasswordEmail,
+  sendPasswordChangedEmail,
+  sendOtpEmail,
 };
+
+/**
+ * Send OTP email for password reset
+ */
+async function sendOtpEmail(to, otp) {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background: #F4F7FB; }
+        .container { max-width: 500px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(10,36,99,0.08); }
+        .header { background: linear-gradient(135deg, #0A2463 0%, #1E5FAD 100%); padding: 32px 24px; text-align: center; }
+        .logo { color: #fff; font-size: 24px; font-weight: 800; letter-spacing: 1px; margin: 0; }
+        .content { padding: 40px 32px; text-align: center; }
+        .title { color: #1A202C; font-size: 20px; font-weight: 700; margin: 0 0 16px; }
+        .text { color: #4A5568; font-size: 15px; line-height: 1.6; margin-bottom: 32px; }
+        .otp-box { background: #F4F7FB; border: 2px dashed #3A86FF; border-radius: 12px; padding: 24px; margin: 24px 0; }
+        .otp-code { font-size: 36px; font-weight: 800; letter-spacing: 12px; color: #0A2463; margin: 0; }
+        .timer { color: #EF4444; font-size: 13px; font-weight: 600; margin-top: 12px; }
+        .footer { padding: 24px; text-align: center; background: #F8FAFC; border-top: 1px solid #E2E8F0; }
+        .footer-text { color: #94A3B8; font-size: 13px; margin: 0 0 4px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 class="logo">CareCo</h1>
+        </div>
+        <div class="content">
+          <h2 class="title">Your Verification Code</h2>
+          <p class="text">Use the code below to reset your CareCo account password. Do not share this code with anyone.</p>
+          <div class="otp-box">
+            <p class="otp-code">${otp}</p>
+            <p class="timer">⏱ Valid for 10 minutes only</p>
+          </div>
+          <p class="text" style="margin-bottom:0;">If you didn't request this, please ignore this email.</p>
+        </div>
+        <div class="footer">
+          <p class="footer-text">&copy; ${new Date().getFullYear()} CareCo. All rights reserved.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail(to, 'CareCo — Your Password Reset Code', html);
+}

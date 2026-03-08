@@ -1,0 +1,54 @@
+On branch feat/premium-onboarding-routing
+Your branch is up to date with 'origin/feat/premium-onboarding-routing'.
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Changes to be committed:
+	modified:   backend/package-lock.json
+	modified:   backend/package.json
+	modified:   backend/src/config/database.js
+	modified:   backend/src/middleware/authenticate.js
+	new file:   backend/src/models/PasswordResetOtp.js
+	modified:   backend/src/models/Patient.js
+	modified:   backend/src/routes/auth.js
+	modified:   backend/src/routes/users/patients.js
+	modified:   backend/src/server.js
+	modified:   backend/src/services/emailService.js
+	new file:   backend/src/utils/logger.js
+	new file:   users-app/.env.example
+	modified:   users-app/app.json
+	new file:   users-app/eas.json
+	new file:   users-app/jest.config.js
+	new file:   users-app/jest.setup.js
+	new file:   users-app/src/lib/__tests__/api.test.js
+	new file:   users-app/src/lib/__tests__/supabase.test.js
+	modified:   users-app/src/lib/api.js
+	modified:   users-app/src/lib/supabase.js
+	new file:   users-app/src/screens/__tests__/LoginScreen.test.js
+	new file:   users-app/src/screens/onboarding/ForgotPasswordScreen.jsx
+	modified:   users-app/src/screens/onboarding/GoogleOnboardingScreen.jsx
+	modified:   users-app/src/screens/onboarding/SplashScreen.jsx
+	modified:   users-app/src/screens/patient/HealthProfileScreen.jsx
+	modified:   users-app/src/screens/patient/MedicationsScreen.jsx
+	modified:   users-app/src/screens/patient/MyCallerScreen.jsx
+	modified:   users-app/src/screens/patient/ProfileScreen.jsx
+
+Unmerged paths:
+  (use "git add/rm <file>..." as appropriate to mark resolution)
+	deleted by us:   .env.example
+	both modified:   users-app/package-lock.json
+	both modified:   users-app/package.json
+	both modified:   users-app/src/context/AuthContext.jsx
+	both modified:   users-app/src/navigation/AppNavigator.jsx
+	both modified:   users-app/src/screens/onboarding/LoginScreen.jsx
+	both modified:   users-app/src/screens/onboarding/PatientSignupScreen.jsx
+	both modified:   users-app/src/screens/patient/HomeScreen.jsx
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	conf.json
+	conflicts.txt
+	tmp_conflicts.json
+

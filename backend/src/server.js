@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const logger = require('./utils/logger');
 require('dotenv').config();
 
 const connectDB = require('./config/database');
@@ -27,7 +28,12 @@ const PORT = process.env.PORT || 3001;
 connectDB();
 
 // Security middleware
-app.use(helmet());
+// Configure Helmet to allow COOP popups for OAuth flows
+app.use(helmet({
+  crossOriginOpenerPolicy: {
+    policy: 'same-origin-allow-popups' // Allows popups (like OAuth) to access the parent window
+  }
+}));
 app.use(compression());
 
 // Rate limiting
@@ -126,10 +132,15 @@ app.use((err, req, res, next) => {
 
 // Start server
 if (require.main === module) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 CareConnect Backend API running on port ${PORT} (all interfaces)`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`🚀 CareConnect Backend API running on port ${PORT} (all interfaces)`); // Replaced console.log with logger.info
+    logger.info(`📊 Health check: http://localhost:${PORT}/health`); // Replaced console.log with logger.info
+    logger.info(`🌍 Environment: ${process.env.NODE_ENV}`); // Replaced console.log with logger.info
+  });
+
+  server.on('error', (error) => {
+    logger.error('Failed to start server:', error); // Added error handling for server startup
+    process.exit(1); // Exit process on server startup error
   });
 }
 

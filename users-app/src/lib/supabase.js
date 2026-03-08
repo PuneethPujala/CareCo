@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -9,9 +10,32 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables. Check your .env file.');
 }
 
+const CustomStorageAdapter = {
+    getItem: (key) => {
+        if (Platform.OS === 'web') {
+            return typeof localStorage === 'undefined' ? Promise.resolve(null) : Promise.resolve(localStorage.getItem(key));
+        }
+        return SecureStore.getItemAsync(key);
+    },
+    setItem: (key, value) => {
+        if (Platform.OS === 'web') {
+            if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+            return Promise.resolve();
+        }
+        return SecureStore.setItemAsync(key, value);
+    },
+    removeItem: (key) => {
+        if (Platform.OS === 'web') {
+            if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+            return Promise.resolve();
+        }
+        return SecureStore.deleteItemAsync(key);
+    },
+};
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-        storage: AsyncStorage,
+        storage: CustomStorageAdapter,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
@@ -21,7 +45,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         headers: {
             'x-app-name': 'CareCo',
             'x-app-platform': Platform.OS,
-            'x-app-version': '1.0.0',
+            'x-app-version': Constants.expoConfig?.version || '1.0.0',
         },
     },
 });
@@ -70,7 +94,7 @@ export const auth = {
 };
 
 export const handleAuthError = (error) => {
-    console.warn('Auth error:', error?.message);
+    // Log to telemetry if needed
     const messages = {
         'Invalid login credentials': 'Invalid email or password',
         'Email not confirmed': 'Please verify your email address',

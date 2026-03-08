@@ -63,18 +63,42 @@ const authenticate = async (req, res, next) => {
     }).populate('organizationId', 'name type');
 
     if (!profile) {
-      // Auto-create profile for users who exist in Supabase but not in MongoDB
+      // Auto-create or find existing profile for users who exist in Supabase but not in MongoDB
       // This handles cases where users were created directly in Supabase dashboard
+      // or where profile creation succeeded but isn't being found (race condition)
       try {
         const userMeta = user.user_metadata || {};
-        const newProfile = await Profile.create({
-          supabaseUid: user.id,
+        
+        // Try to find by email first (in case of duplicate records)
+        const existingByEmail = await Profile.findOne({
           email: user.email,
-          fullName: userMeta.full_name || userMeta.name || user.email.split('@')[0],
-          role: userMeta.role || 'patient',
-          emailVerified: !!user.email_confirmed_at,
-          isActive: true,
+          isActive: true
         });
+
+        if (existingByEmail) {
+          // Profile exists by email, update it and move on
+          if (existingByEmail.supabaseUid !== user.id) {
+            existingByEmail.supabaseUid = user.id;
+            await existingByEmail.save();
+          }
+          req.user = user;
+          req.profile = existingByEmail;
+          return next();
+        }
+
+        // Or create new profile with upsert (handle duplicate key gracefully)
+        const newProfile = await Profile.findOneAndUpdate(
+          { supabaseUid: user.id },
+          {
+            supabaseUid: user.id,
+            email: user.email,
+            fullName: userMeta.full_name || userMeta.name || user.email.split('@')[0],
+            role: userMeta.role || 'patient',
+            emailVerified: !!user.email_confirmed_at,
+            isActive: true,
+          },
+          { upsert: true, new: true }
+        );
 
         req.user = user;
         req.profile = newProfile;
@@ -112,8 +136,8 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Check if email is verified (except for super admins)
-    if (profile.role !== 'super_admin' && !profile.emailVerified) {
+    // Check if email is verified (except for super admins and patients doing self-registration)
+    if (profile.role !== 'super_admin' && profile.role !== 'patient' && !profile.emailVerified) {
       return res.status(403).json({
         error: 'Email verification required',
         code: 'EMAIL_NOT_VERIFIED'

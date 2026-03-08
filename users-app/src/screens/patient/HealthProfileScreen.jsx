@@ -27,7 +27,7 @@ export default function HealthProfileScreen() {
                 setPatient(data.patient);
                 runAnimations();
             } catch (err) {
-                console.warn('Failed to load health profile:', err.message);
+                // Error handled by UI state
             } finally {
                 setLoading(false);
             }

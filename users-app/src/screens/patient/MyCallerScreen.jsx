@@ -46,7 +46,7 @@ export default function MyCallerScreen({ navigation }) {
                     runAnimations();
                 }
             } catch (err) {
-                console.warn('Failed to load caller data:', err.message);
+                // Silently handle error or report to telemetry
             } finally {
                 setLoading(false);
             }

@@ -37,7 +37,7 @@ const AnimatedMedCard = ({ med, onToggle }) => {
         try {
             await apiService.medicines.markMedicine({ medicine_name: med.name, scheduled_time: med.type, taken: newVal });
         } catch (err) {
-            console.warn('Failed to mark medicine:', err.message);
+            // Error handled by UI state
             setTaken(!newVal); // rollback
         }
     };
@@ -126,7 +126,7 @@ export default function MedicationsScreen({ navigation }) {
                     runAnimations();
                 }
             } catch (err) {
-                console.warn('Failed to load medications:', err.message);
+                // Error handled by UI state
             } finally {
                 setLoading(false);
             }
