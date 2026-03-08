@@ -2,6 +2,15 @@ import axios from 'axios';
 import { supabase } from './supabase';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+let authTokenOverride = null;
+
+export const setApiAccessToken = (token) => {
+    authTokenOverride = token || null;
+};
+
+export const clearApiAccessToken = () => {
+    authTokenOverride = null;
+};
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -16,6 +25,12 @@ const api = axios.create({
 // Attach JWT to all requests
 api.interceptors.request.use(async (config) => {
     try {
+        if (authTokenOverride) {
+            config.headers.Authorization = `Bearer ${authTokenOverride}`;
+            config.metadata = { startTime: new Date() };
+            return config;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
             config.headers.Authorization = `Bearer ${session.access_token}`;
@@ -64,6 +79,9 @@ export const apiService = {
         updateProfile: (data) => api.put('/auth/me', data),
         changePassword: (data) => api.post('/auth/change-password', data),
         resetPassword: (email) => api.post('/auth/reset-password', { email }),
+        forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+        verifyOtp: (email, otp) => api.post('/auth/verify-otp', { email, otp }),
+        resetPasswordOtp: (email, resetToken, newPassword) => api.post('/auth/reset-password-otp', { email, resetToken, newPassword }),
     },
 
     // Patient-specific endpoints

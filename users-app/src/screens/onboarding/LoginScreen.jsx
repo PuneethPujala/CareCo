@@ -12,6 +12,8 @@ import * as WebBrowser from 'expo-web-browser';
 
 WebBrowser.maybeCompleteAuthSession();
 
+const SHOULD_USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
 export default function LoginScreen({ navigation }) {
     const { signIn, signInWithGoogle, resetPassword } = useAuth();
 
@@ -36,10 +38,10 @@ export default function LoginScreen({ navigation }) {
 
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: true }),
-            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: true }),
+            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
         ]).start();
     }, []);
 
@@ -83,22 +85,6 @@ export default function LoginScreen({ navigation }) {
         }
     };
 
-    const handleForgotPassword = async () => {
-        const resetEmail = email.trim();
-        if (!resetEmail || !/\S+@\S+\.\S+/.test(resetEmail)) {
-            Alert.alert('Enter Your Email', 'Please enter a valid email address in the email field above, then tap Forgot Password again.');
-            return;
-        }
-        try {
-            setLoading(true);
-            await resetPassword(resetEmail);
-            Alert.alert('Check Your Email', `We've sent a password reset link to ${resetEmail}. Please check your inbox.`);
-        } catch (error) {
-            Alert.alert('Reset Failed', error?.message || 'Failed to send reset email. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     return (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -115,8 +101,8 @@ export default function LoginScreen({ navigation }) {
                             <HeartPulse size={56} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
                         </View>
 
-                        <Text style={styles.heroTitle}>Welcome Back</Text>
-                        <Text style={styles.heroSubtitle}>Log in to your care dashboard</Text>
+                        <Text style={styles.title} accessibilityRole="header">Welcome Back</Text>
+                        <Text style={styles.subtitle}>Sign in to your CareCo account</Text>
                     </LinearGradient>
                 </Animated.View>
 
@@ -124,7 +110,13 @@ export default function LoginScreen({ navigation }) {
                 <Animated.View style={[styles.formCard, { transform: [{ translateY: cardAnim }], opacity: cardOpacity }]}>
 
                     {/* Google Login */}
-                    <Pressable style={styles.googleBtn} onPress={() => promptAsync()} disabled={!request || loading}>
+                    <Pressable
+                        style={styles.googleBtn}
+                        onPress={() => promptAsync()}
+                        disabled={!request || loading}
+                        accessibilityLabel="Continue with Google"
+                        accessibilityRole="button"
+                    >
                         <Text style={styles.googleG}>G</Text>
                         <Text style={styles.googleBtnText}>Continue with Google</Text>
                     </Pressable>
@@ -138,7 +130,7 @@ export default function LoginScreen({ navigation }) {
 
                     {/* Error */}
                     {errorText ? (
-                        <View style={styles.errorBox}>
+                        <View style={styles.errorBox} accessibilityLiveRegion="polite">
                             <AlertCircle size={16} color={colors.danger} />
                             <Text style={styles.errorMsg}>{errorText}</Text>
                         </View>
@@ -150,15 +142,16 @@ export default function LoginScreen({ navigation }) {
                         <View style={[styles.inputWrap, emailFocused && styles.inputFocused]}>
                             <Mail size={18} color="#94A3B8" style={{ marginRight: 10 }} />
                             <TextInput
-                                style={styles.textInput}
-                                placeholder="name@example.com"
+                                style={styles.input}
+                                placeholder="Email address"
                                 placeholderTextColor="#94A3B8"
                                 value={email}
-                                onChangeText={setEmail}
+                                onChangeText={(t) => { setEmail(t); setErrorText(''); }}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
                                 onFocus={() => setEmailFocused(true)}
                                 onBlur={() => setEmailFocused(false)}
+                                accessibilityLabel="Email address input"
                             />
                         </View>
                     </View>
@@ -169,28 +162,45 @@ export default function LoginScreen({ navigation }) {
                         <View style={[styles.inputWrap, passFocused && styles.inputFocused]}>
                             <Lock size={18} color="#94A3B8" style={{ marginRight: 10 }} />
                             <TextInput
-                                style={styles.textInput}
-                                placeholder="Enter password"
+                                style={styles.input}
+                                placeholder="Password"
                                 placeholderTextColor="#94A3B8"
                                 value={password}
-                                onChangeText={setPassword}
+                                onChangeText={(t) => { setPassword(t); setErrorText(''); }}
                                 secureTextEntry={!showPassword}
                                 onFocus={() => setPassFocused(true)}
                                 onBlur={() => setPassFocused(false)}
+                                accessibilityLabel="Password input"
                             />
-                            <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
+                            <Pressable
+                                onPress={() => setShowPassword(!showPassword)}
+                                hitSlop={8}
+                                accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                                accessibilityRole="button"
+                            >
                                 {showPassword ? <Eye size={18} color="#94A3B8" /> : <EyeOff size={18} color="#94A3B8" />}
                             </Pressable>
                         </View>
                     </View>
 
                     {/* Forgot Password */}
-                    <Pressable style={styles.forgotRow} onPress={handleForgotPassword}>
+                    <Pressable
+                        style={styles.forgotRow}
+                        onPress={() => navigation.navigate('ForgotPassword')}
+                        accessibilityLabel="Forgot password?"
+                        accessibilityRole="button"
+                    >
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                     </Pressable>
 
                     {/* Login Button */}
-                    <Pressable style={[styles.primaryBtn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading}>
+                    <Pressable
+                        style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+                        onPress={handleLogin}
+                        disabled={loading}
+                        accessibilityLabel="Sign In"
+                        accessibilityRole="button"
+                    >
                         {loading ? (
                             <View style={styles.loadingRow}>
                                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -204,7 +214,11 @@ export default function LoginScreen({ navigation }) {
                     {/* Sign Up Link */}
                     <View style={styles.bottomLink}>
                         <Text style={styles.bottomLinkText}>Don't have an account?  </Text>
-                        <Pressable onPress={() => navigation.navigate('PatientSignup')}>
+                        <Pressable
+                            onPress={() => navigation.navigate('PatientSignup')}
+                            accessibilityLabel="Sign up for a new account"
+                            accessibilityRole="link"
+                        >
                             <Text style={styles.bottomLinkAction}>Sign Up</Text>
                         </Pressable>
                     </View>

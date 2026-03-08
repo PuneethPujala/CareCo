@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Platform } from 'react-native';
 import { colors, typography, spacing } from '../../theme';
+
+const SHOULD_USE_NATIVE_DRIVER = Platform.OS !== 'web';
 
 export default function SplashScreen({ navigation }) {
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -11,7 +13,7 @@ export default function SplashScreen({ navigation }) {
         Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 600,
-            useNativeDriver: true,
+            useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
         }).start();
 
         // Breathing pulse loop
@@ -21,13 +23,13 @@ export default function SplashScreen({ navigation }) {
                     toValue: 1.15,
                     duration: 750,
                     easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
+                    useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
                 }),
                 Animated.timing(pulseAnim, {
                     toValue: 1,
                     duration: 750,
                     easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: true,
+                    useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
                 }),
             ])
         ).start();

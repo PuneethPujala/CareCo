@@ -11,6 +11,7 @@ import SplashScreen from '../screens/onboarding/SplashScreen';
 import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
 import PatientSignupScreen from '../screens/onboarding/PatientSignupScreen';
 import LoginScreen from '../screens/onboarding/LoginScreen';
+import ForgotPasswordScreen from '../screens/onboarding/ForgotPasswordScreen';
 import GoogleOnboardingScreen from '../screens/onboarding/GoogleOnboardingScreen';
 
 // Patient screens
@@ -96,10 +97,11 @@ function LoadingScreen() {
 
 export default function AppNavigator() {
     const { initializing, isAuthenticated, userRole } = useAuth();
+    const navigatorKey = isAuthenticated ? 'authenticated' : 'unauthenticated';
 
     if (initializing) {
         return (
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator key="initializing" screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="Loading" component={LoadingScreen} />
             </Stack.Navigator>
         );
@@ -107,11 +109,12 @@ export default function AppNavigator() {
 
     if (!isAuthenticated) {
         return (
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator key={navigatorKey} screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="Splash" component={SplashScreen} />
                 <Stack.Screen name="Welcome" component={WelcomeScreen} />
                 <Stack.Screen name="PatientSignup" component={PatientSignupScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             </Stack.Navigator>
         );
     }
@@ -119,7 +122,7 @@ export default function AppNavigator() {
     const isCaller = userRole === 'caretaker' || userRole === 'caller';
 
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator key={navigatorKey} screenOptions={{ headerShown: false }}>
             {isCaller ? (
                 <Stack.Screen name="CallerTabs" component={CallerTabNavigator} />
             ) : (

@@ -72,12 +72,6 @@ export default function PatientHomeScreen({ navigation }) {
             const pData = pRes.data.patient;
             setPatient(pData);
 
-            // If user hasn't paid yet, redirect to subscription flow
-            if (pData?.subscription?.status !== 'active') {
-                navigation.replace('SubscribePlans');
-                return;
-            }
-
             const { data } = await apiService.medicines.getToday();
             const medicines = (data.log?.medicines || []).map((m) => ({
                 id: `${m.medicine_name}_${m.scheduled_time}`,
@@ -90,7 +84,7 @@ export default function PatientHomeScreen({ navigation }) {
             }));
             setMeds(medicines);
         } catch (err) {
-            console.warn('Failed to fetch dashboard data:', err.message);
+            // Error handled by UI state
         } finally {
             setLoading(false);
         }
@@ -104,7 +98,7 @@ export default function PatientHomeScreen({ navigation }) {
         try {
             await apiService.medicines.markMedicine({ medicine_name: med.name, scheduled_time: med.type, taken: newTaken });
         } catch (err) {
-            console.warn('Failed to mark med:', err.message);
+            // Error handled by UI state
             setMeds(prev => prev.map(m => m.id === med.id ? { ...m, taken: !newTaken } : m));
         }
     };

@@ -43,13 +43,13 @@ const PatientSchema = new mongoose.Schema(
         subscription: {
             status: {
                 type: String,
-                enum: ['active', 'pending_payment', 'cancelled'],
-                default: 'pending_payment',
+                enum: ['active', 'inactive', 'pending_payment', 'cancelled'],
+                default: 'inactive',
             },
             plan: {
                 type: String,
-                enum: ['basic', 'explore'],
-                default: 'basic',
+                enum: ['free', 'basic', 'explore'],
+                default: 'free',
             },
             payment_date: Date,
             next_billing: Date,

@@ -31,7 +31,7 @@ async function createBasicPatient(supabaseUid, email, name, paid = 0) {
 
 // ─── Auto-Seed Demo Health Data & Caller (Post-Subscription) ────────────────────────────
 async function subscribeAndSeedDemoData(patient) {
-    if (patient.subscription?.plan !== 'free') return patient; // Already subscribed
+    if (patient.subscription?.status === 'active') return patient; // Already subscribed
 
     const orgId = patient.organization_id || new mongoose.Types.ObjectId();
 
@@ -194,10 +194,19 @@ router.post('/subscribe', authenticate, async (req, res) => {
             }
         }
 
-        if (patient.subscription?.plan !== 'free') return res.status(400).json({ error: 'Already subscribed' });
+        if (patient.subscription?.status === 'active' && patient.paid === 1) {
+            return res.status(400).json({ error: 'Already subscribed' });
+        }
 
         if (paid !== undefined) {
             patient.paid = paid;
+        }
+
+        if (plan && ['basic', 'explore'].includes(plan)) {
+            patient.subscription = {
+                ...patient.subscription,
+                plan,
+            };
         }
 
         // Simulate payment success, then seed data

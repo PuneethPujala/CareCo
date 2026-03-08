@@ -15,7 +15,7 @@ export default function HealthProfileScreen() {
                 const { data } = await apiService.patients.getMe();
                 setPatient(data.patient);
             } catch (err) {
-                console.warn('Failed to load health profile:', err.message);
+                // Error handled by UI state
             } finally {
                 setLoading(false);
             }

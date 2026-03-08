@@ -16,6 +16,8 @@ import * as WebBrowser from 'expo-web-browser';
 
 WebBrowser.maybeCompleteAuthSession();
 
+const SHOULD_USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
 const STEP_LABELS = ['Basic Info', 'Choose Plan', 'Verification', 'Ready'];
 
 const CITIES = [
@@ -104,18 +106,30 @@ const CityPickerModal = ({ visible, onClose, onSelect, selectedCity }) => {
                 <View style={styles.modalSheet}>
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>Select Your City</Text>
-                        <Pressable onPress={onClose} hitSlop={12}><X size={22} color="#64748B" /></Pressable>
+                        <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close city selection" accessibilityRole="button"><X size={22} color="#64748B" /></Pressable>
                     </View>
                     <View style={styles.searchWrap}>
                         <Search size={18} color="#94A3B8" />
-                        <TextInput style={styles.searchInput} placeholder="Search city..." placeholderTextColor="#94A3B8" value={search} onChangeText={setSearch} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search city..."
+                            placeholderTextColor="#94A3B8"
+                            value={search}
+                            onChangeText={setSearch}
+                            accessibilityLabel="Search city input"
+                        />
                     </View>
                     <FlatList
                         data={filtered}
                         keyExtractor={item => item}
                         style={{ maxHeight: 300 }}
                         renderItem={({ item }) => (
-                            <Pressable style={[styles.cityRow, item === selectedCity && styles.cityRowActive]} onPress={() => { onSelect(item); onClose(); }}>
+                            <Pressable
+                                style={[styles.cityRow, item === selectedCity && styles.cityRowActive]}
+                                onPress={() => { onSelect(item); onClose(); }}
+                                accessibilityLabel={item}
+                                accessibilityRole="button"
+                            >
                                 <MapPin size={16} color={item === selectedCity ? '#3A86FF' : '#94A3B8'} />
                                 <Text style={[styles.cityText, item === selectedCity && styles.cityTextActive]}>{item}</Text>
                                 {item === selectedCity && <CheckCircle2 size={18} color="#3A86FF" />}
@@ -136,7 +150,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
             <View style={styles.modalSheet}>
                 <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Complete Payment</Text>
-                    <Pressable onPress={onClose} hitSlop={12}><X size={22} color="#64748B" /></Pressable>
+                    <Pressable onPress={onClose} hitSlop={12} accessibilityLabel="Close payment modal" accessibilityRole="button"><X size={22} color="#64748B" /></Pressable>
                 </View>
                 <View style={styles.paymentSummary}>
                     <Text style={styles.payPlanName}>{planName}</Text>
@@ -144,7 +158,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
                 </View>
                 <Text style={styles.paySubtext}>Choose a UPI app to pay</Text>
                 {['Google Pay', 'PhonePe', 'Paytm'].map(app => (
-                    <Pressable key={app} style={styles.upiRow} onPress={onSuccess}>
+                    <Pressable key={app} style={styles.upiRow} onPress={onSuccess} accessibilityLabel={`Pay with ${app}`} accessibilityRole="button">
                         <View style={styles.upiIconBox}>
                             <Smartphone size={20} color="#1A202C" />
                         </View>
@@ -153,7 +167,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
                     </Pressable>
                 ))}
                 <View style={styles.payDivider} />
-                <Pressable style={styles.payManualBtn} onPress={onSuccess}>
+                <Pressable style={styles.payManualBtn} onPress={onSuccess} accessibilityLabel="Pay with UPI ID" accessibilityRole="button">
                     <CreditCard size={18} color="#FFFFFF" />
                     <Text style={styles.payManualText}>Pay with UPI ID</Text>
                 </Pressable>
@@ -165,6 +179,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
 // ─── Main Component ──────────────────────
 export default function PatientSignupScreen({ navigation, route }) {
     const { signUp, signInWithGoogle, completeSignUp } = useAuth();
+    const signupSnapshotRef = useRef(null);
     const [step, setStep] = useState(route?.params?.step || 1);
     const [form, setForm] = useState({
         fullName: '', email: '', city: '', password: '', confirmPassword: '',
@@ -191,10 +206,10 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: true }),
-            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: true }),
+            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
+            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: SHOULD_USE_NATIVE_DRIVER }),
         ]).start();
     }, []);
 
@@ -240,7 +255,8 @@ export default function PatientSignupScreen({ navigation, route }) {
         // Register account on step 1
         setSignupLoading(true);
         try {
-            await signUp(form.email, form.password, form.fullName, 'patient', { city: form.city });
+            const signupResult = await signUp(form.email, form.password, form.fullName, 'patient', { city: form.city });
+            signupSnapshotRef.current = signupResult;
             setStep(2);
         } catch (error) {
             setErrors({ general: error?.message || 'Signup failed' });
@@ -254,7 +270,7 @@ export default function PatientSignupScreen({ navigation, route }) {
         try {
             await apiService.patients.subscribe({ plan: 'basic', paid: 1 });
         } catch (err) {
-            console.warn('Backend payment save failed:', err.message);
+            // Ignore background error for now
         }
         setStep(3);
     };
@@ -431,7 +447,7 @@ export default function PatientSignupScreen({ navigation, route }) {
             <Text style={styles.centerDesc}>
                 Your CareCo account is ready. Explore your dashboard while we schedule your onboarding call.
             </Text>
-            <Pressable style={styles.primaryBtn} onPress={completeSignUp}>
+            <Pressable style={styles.primaryBtn} onPress={() => completeSignUp(signupSnapshotRef.current)}>
                 <Text style={styles.primaryBtnText}>Go to Dashboard</Text>
             </Pressable>
         </View>
