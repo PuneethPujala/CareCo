@@ -17,6 +17,7 @@ export default function LoginScreen({ navigation }) {
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
         prompt: 'select_account',
     });
 
@@ -40,18 +41,27 @@ export default function LoginScreen({ navigation }) {
 
     useEffect(() => {
         Animated.parallel([
-            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: true }),
-            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: true }),
+            Animated.timing(heroAnim, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(heroOpacity, { toValue: 1, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(cardAnim, { toValue: 0, duration: 350, delay: 100, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(cardOpacity, { toValue: 1, duration: 350, delay: 100, useNativeDriver: Platform.OS !== 'web' }),
         ]).start();
     }, []);
 
     // Handle Google OAuth response
     useEffect(() => {
         if (response?.type === 'success') {
-            const { id_token } = response.params;
-            handleGoogleSignIn(id_token);
+            console.log('Google Auth Response Success:', response);
+            const idToken = response.params?.id_token || response.authentication?.idToken;
+            if (idToken) {
+                handleGoogleSignIn(idToken);
+            } else {
+                console.error('No id_token found in Google response:', response);
+                setErrorText('Authentication failed: No token received.');
+            }
+        } else if (response?.type === 'error') {
+            console.error('Google Auth Response Error:', response.error);
+            setErrorText('Google error: ' + (response.error?.message || 'Unknown error'));
         }
     }, [response]);
 

@@ -63,11 +63,11 @@ const MedicationCard = ({ med, onCheck }) => {
 
     const handlePress = () => {
         Animated.sequence([
-            Animated.timing(scale, { toValue: 0.95, duration: 100, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.95, duration: 100, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: Platform.OS !== 'web' }),
         ]).start(() => {
             onCheck(med);
-            Animated.timing(fade, { toValue: !med.taken ? 0.6 : 1, duration: 200, useNativeDriver: true }).start();
+            Animated.timing(fade, { toValue: !med.taken ? 0.6 : 1, duration: 200, useNativeDriver: Platform.OS !== 'web' }).start();
         });
     };
 
@@ -102,7 +102,7 @@ export default function PatientHomeScreen({ navigation }) {
         staggerAnims.forEach(anim => anim.setValue(0));
         Animated.stagger(100,
             staggerAnims.map(anim =>
-                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: Platform.OS !== 'web' })
             )
         ).start();
     }, [staggerAnims]);

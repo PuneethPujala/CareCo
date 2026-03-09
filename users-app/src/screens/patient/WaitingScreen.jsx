@@ -9,6 +9,7 @@ import {
     Clock, ChevronRight, Sparkles, Star, CheckCircle2
 } from 'lucide-react-native';
 import { colors } from '../../theme';
+import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -54,15 +55,16 @@ export default function WaitingScreen({ navigation, route }) {
     const plan = route.params?.plan;
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
+    const { completeSignUp } = useAuth();
 
     useEffect(() => {
-        Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+        Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== 'web' }).start();
 
         // Pulsing animation for the waiting badge
         Animated.loop(
             Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
-                Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+                Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
+                Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
             ])
         ).start();
     }, []);
@@ -196,7 +198,7 @@ export default function WaitingScreen({ navigation, route }) {
 
             {/* CTA */}
             <View style={styles.ctaContainer}>
-                <Pressable onPress={() => navigation.reset({ index: 0, routes: [{ name: 'PatientTabs' }] })}>
+                <Pressable onPress={completeSignUp}>
                     <LinearGradient
                         colors={[colors.accent, '#1E5FAD']}
                         start={{ x: 0, y: 0 }}

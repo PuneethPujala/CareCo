@@ -57,7 +57,7 @@ const PasswordRequirements = ({ password }) => {
         <View style={styles.reqWrap}>
             {checks.map((c, i) => (
                 <Text key={i} style={[styles.reqItem, { color: c.met ? '#22C55E' : '#64748B' }]}>
-                    {c.met ? '✓' : '—'} {c.label}
+                    {`${c.met ? '✓' : '—'} ${c.label}`}
                 </Text>
             ))}
         </View>
@@ -200,7 +200,8 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
 
 // ─── Main Component ──────────────────────
 export default function PatientSignupScreen({ navigation, route }) {
-    const { user, signUp, signInWithGoogle, completeSignUp } = useAuth();
+    // ✅ FIX: Added signOut to destructuring — never call useAuth() inside event handlers
+    const { user, signUp, signInWithGoogle, completeSignUp, signOut } = useAuth();
     const [step, setStep] = useState(route?.params?.step || 1);
     const [form, setForm] = useState({
         fullName: '', email: '', phoneNumber: '', city: '', password: '', confirmPassword: '',
@@ -231,6 +232,7 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+        androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
         prompt: 'select_account',
     });
 
@@ -269,17 +271,17 @@ export default function PatientSignupScreen({ navigation, route }) {
         cardOpacity.setValue(0);
 
         Animated.parallel([
-            Animated.timing(heroAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-            Animated.timing(heroOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-            Animated.timing(cardAnim, { toValue: 0, duration: 500, delay: 100, useNativeDriver: true }),
-            Animated.timing(cardOpacity, { toValue: 1, duration: 500, delay: 100, useNativeDriver: true }),
+            Animated.timing(heroAnim, { toValue: 0, duration: 400, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(heroOpacity, { toValue: 1, duration: 400, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(cardAnim, { toValue: 0, duration: 500, delay: 100, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(cardOpacity, { toValue: 1, duration: 500, delay: 100, useNativeDriver: Platform.OS !== 'web' }),
         ]).start();
 
         const animations = staggerAnims.map((anim, i) =>
             Animated.timing(anim, {
                 toValue: 1,
                 duration: 400,
-                useNativeDriver: true
+                useNativeDriver: Platform.OS !== 'web'
             })
         );
         Animated.stagger(100, animations).start();
@@ -292,8 +294,17 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     useEffect(() => {
         if (response?.type === 'success') {
-            const { id_token } = response.params;
-            handleGoogleSignUp(id_token);
+            console.log('Google Sign-Up Response Success:', response);
+            const idToken = response.params?.id_token || response.authentication?.idToken;
+            if (idToken) {
+                handleGoogleSignUp(idToken);
+            } else {
+                console.error('No id_token found in Google sign-up response:', response);
+                setErrors({ google: 'Authentication failed: No token received.' });
+            }
+        } else if (response?.type === 'error') {
+            console.error('Google Sign-Up Response Error:', response.error);
+            setErrors({ google: 'Google error: ' + (response.error?.message || 'Unknown error') });
         }
     }, [response]);
 
@@ -385,10 +396,66 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     const handleDetectLocation = async () => {
         setDetectingLocation(true);
+        setErrors(prev => ({ ...prev, location: '' }));
+
+        // ── Web: use browser navigator.geolocation + Nominatim reverse geocoding ──
+        if (Platform.OS === 'web') {
+            if (!navigator?.geolocation) {
+                setErrors({ location: 'Geolocation is not supported by your browser.' });
+                setDetectingLocation(false);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    try {
+                        const { latitude, longitude } = pos.coords;
+                        const res = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+                            { headers: { 'Accept-Language': 'en', 'User-Agent': 'CareCo-App/1.0' } }
+                        );
+                        const data = await res.json();
+                        if (data && data.address) {
+                            const a = data.address;
+                            const city =
+                                a.city || a.town || a.village || a.county || a.state_district || '';
+                            const addrStr = [
+                                a.road || a.neighbourhood,
+                                a.suburb,
+                                city,
+                                a.state,
+                                a.postcode,
+                            ]
+                                .filter(Boolean)
+                                .join(', ');
+                            setLocationAddress(addrStr || data.display_name || 'Location detected');
+                            setForm(prev => ({ ...prev, city }));
+                        } else {
+                            setErrors({ location: 'Could not determine address. Please enter manually.' });
+                        }
+                    } catch {
+                        setErrors({ location: 'Failed to fetch address. Please enter manually.' });
+                    } finally {
+                        setDetectingLocation(false);
+                    }
+                },
+                (err) => {
+                    const msg =
+                        err.code === 1 ? 'Location permission denied. Please allow access and try again.' :
+                        err.code === 2 ? 'Location unavailable. Please enter manually.' :
+                        'Location request timed out. Please try again.';
+                    setErrors({ location: msg });
+                    setDetectingLocation(false);
+                },
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+            return; // navigator.geolocation is callback-based, so return early here
+        }
+
+        // ── Native (iOS / Android): use expo-location ──
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setErrors({ location: 'Permission to access location was denied' });
+                setErrors({ location: 'Permission to access location was denied.' });
                 return;
             }
             const location = await Location.getCurrentPositionAsync({});
@@ -397,12 +464,14 @@ export default function PatientSignupScreen({ navigation, route }) {
                 longitude: location.coords.longitude,
             });
             if (address) {
-                const addrStr = `${address.name || ''}, ${address.street || ''}, ${address.city || ''}, ${address.region || ''}, ${address.postalCode || ''}`;
+                const addrStr = [address.name, address.street, address.city, address.region, address.postalCode]
+                    .filter(Boolean)
+                    .join(', ');
                 setLocationAddress(addrStr);
                 setForm(prev => ({ ...prev, city: address.city || '' }));
             }
         } catch (error) {
-            setErrors({ location: 'Failed to detect location' });
+            setErrors({ location: 'Failed to detect location.' });
         } finally {
             setDetectingLocation(false);
         }
@@ -454,7 +523,6 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     const handleBack = () => {
         if (step > 1) {
-            // If going back from Step 3 (Plan) to Step 2 (Location), we need to handle step indexing correctly
             setStep(prev => prev - 1);
         }
     };
@@ -641,7 +709,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                     )}
                 </Pressable>
 
-                <Pressable style={styles.locationSecondaryBtn} onPress={() => { /* Opne manual picker */ }}>
+                <Pressable style={styles.locationSecondaryBtn} onPress={() => { /* Open manual picker */ }}>
                     <Text style={styles.locationSecondaryBtnText}>Enter location manually</Text>
                 </Pressable>
 
@@ -678,7 +746,7 @@ export default function PatientSignupScreen({ navigation, route }) {
         </View>
     );
 
-    // ──── STEP 3 (Plan Selection - Original Step 2) ────
+    // ──── STEP 3 (Plan Selection) ────
     const renderStep2_Original = () => (
         <View style={{ paddingBottom: 20 }}>
             <Animated.View style={{ opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>
@@ -709,7 +777,10 @@ export default function PatientSignupScreen({ navigation, route }) {
                             </View>
                             <View style={styles.planPriceCol}>
                                 <Text style={styles.planTitleEnhanced}>Basic Plan</Text>
-                                <Text style={styles.planPriceEnhanced}>₹500<Text style={styles.planPriceSub}>/mo</Text></Text>
+                                <Text style={styles.planPriceEnhanced}>
+                                    {'₹500'}
+                                    <Text style={styles.planPriceSub}>/mo</Text>
+                                </Text>
                             </View>
                             {selectedPlan.id === 'basic' && (
                                 <View style={styles.selectedCheck}>
@@ -762,7 +833,10 @@ export default function PatientSignupScreen({ navigation, route }) {
                             </View>
                             <View style={styles.planPriceCol}>
                                 <Text style={[styles.planTitleEnhanced, { color: '#9333EA' }]}>Premium Plan</Text>
-                                <Text style={[styles.planPriceEnhanced, { color: '#9333EA' }]}>₹999<Text style={styles.planPriceSub}>/mo</Text></Text>
+                                <Text style={[styles.planPriceEnhanced, { color: '#9333EA' }]}>
+                                    {'₹999'}
+                                    <Text style={styles.planPriceSub}>/mo</Text>
+                                </Text>
                             </View>
                             {selectedPlan.id === 'premium' && (
                                 <View style={styles.selectedCheck}>
@@ -796,7 +870,7 @@ export default function PatientSignupScreen({ navigation, route }) {
         </View>
     );
 
-    // ──── STEP 3 ────
+    // ──── STEP 4 (Success / Verification) ────
     const renderStep3 = () => (
         <View style={styles.centerStepEnhanced}>
             <Animated.View style={{ width: '100%', opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
@@ -818,8 +892,9 @@ export default function PatientSignupScreen({ navigation, route }) {
                         <Sparkles size={18} color="#0EA5E9" />
                         <Text style={styles.nextStepsTitle}>Your Onboarding Journey</Text>
                     </View>
+                    {/* ✅ FIX: Wrapped description text in <Text> to avoid stray text node errors */}
                     <Text style={styles.nextStepsDesc}>
-                        A Care Caller will reach out within 24 hours to finalize your profile:
+                        A Care Caller will reach out within 24 hours to finalize your profile.
                     </Text>
 
                     <View style={styles.journeyList}>
@@ -854,7 +929,7 @@ export default function PatientSignupScreen({ navigation, route }) {
         </View>
     );
 
-
+    // ──── STEP 5 (Ready) ────
     const renderStep4 = () => (
         <View style={styles.centerStepEnhanced}>
             <Animated.View style={{ opacity: staggerAnims[0], transform: [{ scale: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }}>
@@ -930,7 +1005,8 @@ export default function PatientSignupScreen({ navigation, route }) {
                                             <ArrowLeft size={16} color="rgba(255,255,255,0.8)" />
                                             <Text style={styles.backBtnText}>Back</Text>
                                         </Pressable>
-                                        <Pressable onPress={() => useAuth().signOut()} style={styles.backBtnHeader} hitSlop={15}>
+                                        {/* ✅ FIX: Use destructured signOut instead of calling useAuth() inside handler */}
+                                        <Pressable onPress={signOut} style={styles.backBtnHeader} hitSlop={15}>
                                             <LogOut size={16} color="rgba(255,255,255,0.8)" />
                                             <Text style={styles.backBtnText}>Log Out</Text>
                                         </Pressable>
@@ -970,8 +1046,6 @@ export default function PatientSignupScreen({ navigation, route }) {
                 error={errors.otp}
             />
 
-
-
             <UPIPaymentModal
                 visible={upiModalVisible}
                 onClose={() => setUpiModalVisible(false)}
@@ -1006,11 +1080,10 @@ const styles = StyleSheet.create({
     modernProgressContainer: { flexDirection: 'row', gap: 8, width: '100%' },
     progressSegmentWrapper: { flex: 1, height: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 3, overflow: 'hidden' },
     progressSegment: { height: '100%', width: '0%' },
-    progressSegmentActive: { width: '50%', backgroundColor: '#FFFFFF' }, // Half filled for current
+    progressSegmentActive: { width: '50%', backgroundColor: '#FFFFFF' },
     progressSegmentDone: { width: '100%', backgroundColor: '#FFFFFF' },
 
     // ─── Form Card ────────────────────
-
     formCard: {
         marginTop: -24, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 20,
         paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, marginBottom: 40,
@@ -1049,7 +1122,6 @@ const styles = StyleSheet.create({
     trustText: { fontSize: 10, fontWeight: '700', color: '#1E40AF', letterSpacing: 0.2 },
     trustDivider: { width: 1, height: 10, backgroundColor: '#BFDBFE', marginHorizontal: 2 },
 
-
     // ─── Fields ───────────────────────
     fieldGroup: { marginBottom: 20 },
     label: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 8, marginLeft: 4 },
@@ -1064,7 +1136,6 @@ const styles = StyleSheet.create({
     textInputEnhanced: { flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '500' },
     fieldErrorEnhanced: { fontSize: 12, color: '#EF4444', fontWeight: '500' },
     rightIconWrap: { marginLeft: 10 },
-
 
     // ─── Password ─────────────────────
     strengthWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8, marginBottom: 12 },
@@ -1165,7 +1236,7 @@ const styles = StyleSheet.create({
         shadowColor: '#0A2463', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
     },
 
-    // ─── Step 4 Final ──────────────────
+    // ─── Step 5 Final ──────────────────
     readyVisualWrap: { width: 180, height: 180, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
     readyIconGrid: { position: 'absolute', width: '100%', height: '100%' },
     readyIconBox: { position: 'absolute', width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
@@ -1237,16 +1308,13 @@ const styles = StyleSheet.create({
     locationDetectText: { color: '#3A86FF', fontSize: 15, fontWeight: '700' },
     addressSuccessBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F0FFF4', borderRadius: 12, padding: 14, width: '100%', borderWidth: 1, borderColor: '#DCFCE7', marginBottom: 20 },
     addressText: { color: '#166534', fontSize: 13, flex: 1, lineHeight: 18 },
-    bottomLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 24, paddingBottom: 10 },
-    bottomLinkText: { color: '#64748B', fontSize: 14, fontWeight: '500' },
-    bottomLinkAction: { color: '#3A86FF', fontSize: 14, fontWeight: '700' },
 
     // ─── Premium Location Screen ──────
     locationTitlePremium: { fontSize: 28, fontWeight: '800', color: '#1A1A1A', textAlign: 'center', marginBottom: 10 },
     locationSubtitlePremium: { fontSize: 15, fontWeight: '500', color: '#94A3B8', textAlign: 'center', lineHeight: 22, paddingHorizontal: 20 },
     locationIllustration: { width: '100%', height: '100%' },
     locationPrimaryBtn: {
-        backgroundColor: '#3A86FF', // Premium Blue for consistency
+        backgroundColor: '#3A86FF',
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         height: 58, borderRadius: 16, width: '100%', gap: 12,
         shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 6

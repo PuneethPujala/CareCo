@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable, Animated } from 'react-native';
+import { View, Text, StyleSheet, Platform, Pressable, Animated, ActivityIndicator } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LayoutDashboard, Users, Pill, ShieldPlus, UserCircle, Menu, Bell } from 'lucide-react-native';
@@ -40,7 +40,7 @@ const TabIconWrapper = ({ focused, IconConfig }) => {
         Animated.spring(scaleAnim, {
             toValue: focused ? 1 : 0.9,
             friction: 6,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
         }).start();
     }, [focused]);
 

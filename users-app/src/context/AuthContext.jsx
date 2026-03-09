@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { supabase, auth, handleAuthError } from '../lib/supabase';
 import { apiService, handleApiError } from '../lib/api';
 import * as Google from 'expo-auth-session/providers/google';
@@ -20,6 +21,15 @@ export function AuthProvider({ children }) {
     const profileRef = useRef(profile);
     useEffect(() => { profileRef.current = profile; }, [profile]);
     useEffect(() => { isOnboardingRef.current = isOnboarding; }, [isOnboarding]);
+
+    // Sign Out
+    const signOut = useCallback(async () => {
+        try { await auth.signOut(); } catch { }
+        setUser(null);
+        setProfile(null);
+        setIsOnboarding(false);
+        isOnboardingRef.current = false;
+    }, []);
 
     // Initialization — check existing session
     useEffect(() => {
@@ -54,11 +64,14 @@ export function AuthProvider({ children }) {
             }
         };
         init();
-    }, [signOut]);
+    }, []);
+
+    const profileFetchingRef = useRef(false);
 
     // Auth state listener
     useEffect(() => {
         const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
+            console.debug(' [AUTH] Event:', event);
             if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setProfile(null);
@@ -74,14 +87,21 @@ export function AuthProvider({ children }) {
                 if (isOnboardingRef.current) return;
 
                 if (skipFetchCountRef.current > 0) {
+                    console.debug(' [AUTH] Skipping profile fetch, remaining:', skipFetchCountRef.current - 1);
                     skipFetchCountRef.current--;
                     return;
                 }
-                if (!profileRef.current) {
+
+                if (!profileRef.current && !profileFetchingRef.current) {
                     try {
+                        profileFetchingRef.current = true;
                         const response = await apiService.auth.getProfile();
                         setProfile(response.data.profile);
-                    } catch { }
+                    } catch (err) {
+                        console.warn(' [AUTH] Listener profile fetch failed:', err.message);
+                    } finally {
+                        profileFetchingRef.current = false;
+                    }
                 }
             }
         });
@@ -138,6 +158,9 @@ export function AuthProvider({ children }) {
             setUser(session.user);
             setProfile(profileData);
 
+            // set skip before triggering events
+            skipFetchCountRef.current = 2;
+
             const { error: sessionError } = await supabase.auth.setSession({
                 access_token: session.access_token,
                 refresh_token: session.refresh_token,
@@ -160,35 +183,40 @@ export function AuthProvider({ children }) {
         }
     }, []);
 
-    // Sign Out
-    const signOut = useCallback(async () => {
-        try { await auth.signOut(); } catch { }
-        setUser(null);
-        setProfile(null);
-        setIsOnboarding(false);
-        isOnboardingRef.current = false;
-    }, []);
-
     // Google Sign In
     const signInWithGoogle = useCallback(async (idToken) => {
         setLoading(true);
         try {
+            // Set skip count BEFORE the call as it triggers onAuthStateChange concurrently
+            skipFetchCountRef.current = 2;
+
             const { data, error } = await supabase.auth.signInWithIdToken({
                 provider: 'google',
                 token: idToken,
             });
-            if (error) throw error;
+            if (error) {
+                skipFetchCountRef.current = 0; // reset if failed
+                throw error;
+            }
 
             setUser(data.user);
-            skipFetchCountRef.current = 2;
 
-            // Try to fetch existing profile, or create one
+            // Try to fetch existing profile, or create one (backend handles auto-creation)
             try {
                 const response = await apiService.auth.getProfile();
-                setProfile(response.data.profile);
-            } catch {
-                // New Google user — profile doesn't exist yet
-                // Return info so the screen can route to sign-up step 2
+                const profileData = response.data.profile;
+                setProfile(profileData);
+
+                // If patient but NOT active subscription, they are in onboarding
+                if (profileData.role === 'patient' && profileData.subscription_status !== 'active') {
+                    setIsOnboarding(true);
+                    isOnboardingRef.current = true;
+                    setLoading(false);
+                    return { isNewUser: true, user: data.user };
+                }
+            } catch (err) {
+                console.warn('Google profile fetch/auto-create returned error:', err.message);
+                // Return info so the screen can route to onboarding
                 setLoading(false);
                 setIsOnboarding(true);
                 isOnboardingRef.current = true;
@@ -200,6 +228,18 @@ export function AuthProvider({ children }) {
         } catch (error) {
             setLoading(false);
             throw new Error(error?.message || 'Google sign-in failed');
+        }
+    }, []);
+
+    // Refresh profile data from backend
+    const refreshProfile = useCallback(async () => {
+        try {
+            const response = await apiService.auth.getProfile();
+            setProfile(response.data.profile);
+            return response.data.profile;
+        } catch (error) {
+            console.warn('Profile refresh failed:', error.message);
+            return null;
         }
     }, []);
 
@@ -221,7 +261,7 @@ export function AuthProvider({ children }) {
     const value = {
         user, profile, loading, initializing,
         isAuthenticated, displayName, userRole, userEmail: user?.email,
-        signIn, signUp, signOut, resetPassword, signInWithGoogle, completeSignUp
+        signIn, signUp, signOut, resetPassword, signInWithGoogle, completeSignUp, refreshProfile
     };
 
     return (

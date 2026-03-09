@@ -64,14 +64,14 @@ export default function SubscribePlansScreen({ navigation }) {
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: Platform.OS !== 'web' }).start();
     }, []);
 
     const handleSelect = (id) => {
         setSelected(id);
         Animated.sequence([
-            Animated.timing(scaleAnim, { toValue: 0.95, duration: 80, useNativeDriver: true }),
-            Animated.timing(scaleAnim, { toValue: 1, duration: 120, useNativeDriver: true }),
+            Animated.timing(scaleAnim, { toValue: 0.95, duration: 80, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(scaleAnim, { toValue: 1, duration: 120, useNativeDriver: Platform.OS !== 'web' }),
         ]).start();
     };
 

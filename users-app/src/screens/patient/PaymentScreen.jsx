@@ -49,7 +49,7 @@ export default function PaymentScreen({ navigation, route }) {
 
             // Animate success check
             Animated.spring(checkScale, {
-                toValue: 1, friction: 4, useNativeDriver: true,
+                toValue: 1, friction: 4, useNativeDriver: Platform.OS !== 'web',
             }).start();
 
             // Navigate to waiting screen after a brief moment

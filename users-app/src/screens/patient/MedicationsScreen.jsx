@@ -29,9 +29,9 @@ const AnimatedMedCard = ({ med, onToggle }) => {
     const handleCheck = async () => {
         const newVal = !taken;
         Animated.sequence([
-            Animated.timing(scale, { toValue: 0.9, duration: 100, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1.1, duration: 100, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.9, duration: 100, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(scale, { toValue: 1.1, duration: 100, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: Platform.OS !== 'web' }),
         ]).start();
         setTaken(newVal);
         try {
@@ -80,7 +80,7 @@ export default function MedicationsScreen({ navigation }) {
         staggerAnims.forEach(anim => anim.setValue(0));
         Animated.stagger(100,
             staggerAnims.map(anim =>
-                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: Platform.OS !== 'web' })
             )
         ).start();
     }, [staggerAnims]);

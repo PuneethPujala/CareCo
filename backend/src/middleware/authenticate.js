@@ -56,37 +56,86 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Fetch full profile from MongoDB
-    const profile = await Profile.findOne({
-      supabaseUid: user.id,
-      isActive: true
-    }).populate('organizationId', 'name type');
+    // Fetch full profile from MongoDB - try finding by supabaseUid first
+    let profile = await Profile.findOne({ supabaseUid: user.id })
+      .populate('organizationId', 'name type');
+
+    // If not found by UID, try finding by email (useful for legacy or imported users)
+    if (!profile && user.email) {
+      profile = await Profile.findOne({ email: user.email.toLowerCase().trim() })
+        .populate('organizationId', 'name type');
+
+      // If found by email but UID is different, update the UID (OAuth provider link)
+      if (profile && profile.supabaseUid !== user.id) {
+        profile.supabaseUid = user.id;
+        await profile.save();
+      }
+    }
 
     if (!profile) {
       // Auto-create profile for users who exist in Supabase but not in MongoDB
-      // This handles cases where users were created directly in Supabase dashboard
       try {
         const userMeta = user.user_metadata || {};
-        const newProfile = await Profile.create({
+        const role = userMeta.role || 'patient';
+
+        profile = await Profile.create({
           supabaseUid: user.id,
           email: user.email,
           fullName: userMeta.full_name || userMeta.name || user.email.split('@')[0],
-          role: userMeta.role || 'patient',
+          role: role,
           emailVerified: !!user.email_confirmed_at,
           isActive: true,
         });
 
-        req.user = user;
-        req.profile = newProfile;
-        return next();
+        // CRITICAL: If user is a patient, ALSO create the Patient detail record
+        if (role === 'patient') {
+          const Patient = require('../models/Patient');
+          const Organization = require('../models/Organization');
+
+          // Try to find a default organization or use a placeholder
+          let orgId = null;
+          try {
+            const defaultOrg = await Organization.findOne({ isActive: true }).sort({ createdAt: 1 });
+            orgId = defaultOrg ? defaultOrg._id : null;
+          } catch (orgErr) {
+            console.warn('Failed to find default organization for auto-created patient');
+          }
+
+          // Check if patient record already exists (to avoid duplicate errors)
+          const existingPatient = await Patient.findOne({ supabase_uid: user.id });
+          if (!existingPatient) {
+            await Patient.create({
+              supabase_uid: user.id,
+              email: user.email,
+              name: profile.fullName,
+              city: 'Pending', // Will be updated during onboarding
+              organization_id: orgId,
+              subscription: {
+                status: 'pending_payment',
+                plan: 'basic'
+              },
+              profile_complete: false
+            });
+          }
+        }
       } catch (createError) {
-        console.warn('Failed to auto-create profile:', createError?.message);
+        console.error(' [AUTH] 403 PROFILE_INIT_FAILED for user:', user.email, 'Error:', createError.message);
 
         return res.status(403).json({
-          error: 'Profile not found or account deactivated',
-          code: 'PROFILE_NOT_FOUND'
+          error: 'Failed to initialize your account profile',
+          code: 'PROFILE_INIT_FAILED',
+          details: createError.message
         });
       }
+    }
+
+    // Check if account is active
+    if (!profile.isActive) {
+      console.warn(' [AUTH] 403 ACCOUNT_DEACTIVATED for user:', user.email);
+      return res.status(403).json({
+        error: 'Account deactivated. Please contact support.',
+        code: 'ACCOUNT_DEACTIVATED'
+      });
     }
 
     // Check if account is locked
@@ -114,6 +163,7 @@ const authenticate = async (req, res, next) => {
 
     // Check if email is verified (except for super admins)
     if (profile.role !== 'super_admin' && !profile.emailVerified) {
+      console.warn(' [AUTH] 403 EMAIL_NOT_VERIFIED for user:', user.email);
       return res.status(403).json({
         error: 'Email verification required',
         code: 'EMAIL_NOT_VERIFIED'

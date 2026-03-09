@@ -15,7 +15,7 @@ export default function HealthProfileScreen() {
         staggerAnims.forEach(anim => anim.setValue(0));
         Animated.stagger(100,
             staggerAnims.map(anim =>
-                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
+                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: Platform.OS !== 'web' })
             )
         ).start();
     }, [staggerAnims]);
