@@ -9,10 +9,11 @@ const { authenticate } = require('../../middleware/authenticate');
 const router = express.Router();
 
 // ─── Auto-Seed Basic Profile ────────────────────────────
-async function createBasicPatient(supabaseUid, email, name, paid = 0) {
+async function createBasicPatient(supabaseUid, email, name, profileId, paid = 0) {
     const orgId = new mongoose.Types.ObjectId();
     const patient = await Patient.create({
         supabase_uid: supabaseUid,
+        profile_id: profileId,
         name: name || email.split('@')[0],
         email,
         city: 'Hyderabad', // Mock default city picked during signup
@@ -202,7 +203,8 @@ router.get('/me', authenticate, async (req, res) => {
                 patient = await createBasicPatient(
                     req.user.id,
                     req.user.email,
-                    req.user.user_metadata?.full_name || req.user.user_metadata?.name
+                    req.user.user_metadata?.full_name || req.user.user_metadata?.name,
+                    req.user.profileId
                 );
             } catch (seedErr) {
                 console.error('Auto-seed error:', seedErr);
@@ -250,7 +252,8 @@ router.post('/subscribe', authenticate, async (req, res) => {
                 patient = await createBasicPatient(
                     req.user.id,
                     req.user.email,
-                    req.user.user_metadata?.full_name || req.user.user_metadata?.name
+                    req.user.user_metadata?.full_name || req.user.user_metadata?.name,
+                    req.user.profileId
                 );
             } catch (seedErr) {
                 console.error('Auto-seed error in subscribe:', seedErr);

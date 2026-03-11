@@ -152,6 +152,7 @@ router.post('/register', async (req, res) => {
     if (role === 'patient') {
       const patient = new Patient({
         supabase_uid: finalUid,
+        profile_id: profile._id,
         email,
         name: fullName || email.split('@')[0],
         city: req.body.city || 'Unknown',
