@@ -204,7 +204,7 @@ router.get('/me', authenticate, async (req, res) => {
                     req.user.id,
                     req.user.email,
                     req.user.user_metadata?.full_name || req.user.user_metadata?.name,
-                    req.user.profileId
+                    req.profile._id
                 );
             } catch (seedErr) {
                 console.error('Auto-seed error:', seedErr);
@@ -244,7 +244,7 @@ router.put('/me', authenticate, async (req, res) => {
  */
 router.post('/subscribe', authenticate, async (req, res) => {
     try {
-        const { plan, paid } = req.body;
+        const { paid } = req.body;
         let patient = await Patient.findOne({ supabase_uid: req.user.id });
 
         if (!patient) {
@@ -253,7 +253,7 @@ router.post('/subscribe', authenticate, async (req, res) => {
                     req.user.id,
                     req.user.email,
                     req.user.user_metadata?.full_name || req.user.user_metadata?.name,
-                    req.user.profileId
+                    req.profile._id
                 );
             } catch (seedErr) {
                 console.error('Auto-seed error in subscribe:', seedErr);
@@ -307,14 +307,14 @@ router.get('/me/caller', authenticate, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient || !patient.assigned_caller_id) {
-            return res.status(404).json({ error: 'No caller assigned yet' });
+            return res.status(200).json({ caller: null, message: 'No caller assigned yet' });
         }
 
         const caller = await Caller.findById(patient.assigned_caller_id)
             .select('name employee_id profile_photo_url languages_spoken experience_years phone city');
 
         if (!caller) {
-            return res.status(404).json({ error: 'Assigned caller not found' });
+            return res.status(200).json({ caller: null, message: 'Assigned caller not found' });
         }
 
         res.json({ caller });
@@ -332,7 +332,7 @@ router.get('/me/calls', authenticate, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) {
-            return res.status(404).json({ error: 'Patient profile not found' });
+            return res.status(200).json({ calls: [], pagination: { total: 0 }, error: 'Patient profile not found' });
         }
 
         const { page = 1, limit = 20 } = req.query;
@@ -371,7 +371,7 @@ router.get('/me/medications', authenticate, async (req, res) => {
         const patient = await Patient.findOne({ supabase_uid: req.user.id })
             .select('medications');
         if (!patient) {
-            return res.status(404).json({ error: 'Patient profile not found' });
+            return res.status(200).json({ medications: [], error: 'Patient profile not found' });
         }
         res.json({ medications: patient.medications });
     } catch (error) {

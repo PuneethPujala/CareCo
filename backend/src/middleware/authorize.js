@@ -346,46 +346,23 @@ const authorizeResource = (resource, action, getResourceOwner) => {
 
 /**
  * Helper function to check special access permissions
- * (e.g., care manager accessing patient data, caretaker accessing assigned patients)
+ * (e.g., care manager accessing patient data, caller accessing assigned patients)
  */
 async function checkSpecialAccess(profile, resource, action, resourceOwnerId) {
   const Profile = mongoose.model('Profile');
-  const CaretakerPatient = mongoose.model('CaretakerPatient');
-  const MentorAuthorization = mongoose.model('MentorAuthorization');
 
   switch (profile.role) {
     case 'care_manager':
-    case 'org_admin':
+    case 'org_admin': {
       // Can access resources within their organization
       const resourceOwner = await Profile.findById(resourceOwnerId);
       return resourceOwner &&
         profile.organizationId &&
         resourceOwner.organizationId &&
         profile.organizationId.equals(resourceOwner.organizationId);
+    }
 
-    case 'caretaker':
-      // Can access assigned patients
-      if (resource === 'patients') {
-        const assignment = await CaretakerPatient.findOne({
-          caretakerId: profile._id,
-          patientId: resourceOwnerId,
-          status: 'active'
-        });
-        return !!assignment;
-      }
-      break;
 
-    case 'patient_mentor':
-      // Can access authorized patients
-      if (resource === 'patients') {
-        const authorization = await MentorAuthorization.findOne({
-          mentorId: profile._id,
-          patientId: resourceOwnerId,
-          status: 'active'
-        });
-        return !!authorization;
-      }
-      break;
   }
 
   return false;

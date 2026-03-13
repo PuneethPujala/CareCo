@@ -10,8 +10,6 @@ const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profile');
 const patientRoutes = require('./routes/patients');
-const caretakerRoutes = require('./routes/caretakers');
-const mentorRoutes = require('./routes/mentors');
 const organizationRoutes = require('./routes/organizations');
 const reportRoutes = require('./routes/reports');
 
@@ -23,8 +21,10 @@ const usersMedicineRoutes = require('./routes/users/medicines');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (skip in test environment to avoid open handles or missing mocks)
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+}
 
 // Security middleware
 app.use(helmet());
@@ -77,8 +77,6 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/patients', patientRoutes);
-app.use('/api/caretakers', caretakerRoutes);
-app.use('/api/mentors', mentorRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/reports', reportRoutes);
 
@@ -93,6 +91,7 @@ app.use('*', (req, res) => {
 });
 
 // Global error handler
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error('Global error:', err);
 

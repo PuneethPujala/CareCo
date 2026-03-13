@@ -2,7 +2,6 @@ const express = require('express');
 const Caller = require('../../models/Caller');
 const Patient = require('../../models/Patient');
 const CallLog = require('../../models/CallLog');
-const MedicineLog = require('../../models/MedicineLog');
 const Alert = require('../../models/Alert');
 const { authenticate } = require('../../middleware/authenticate');
 

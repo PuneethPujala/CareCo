@@ -180,15 +180,21 @@ const PatientSchema = new mongoose.Schema(
                 instructions: String,
             },
         ],
-        emergency_contacts: [
+        trusted_contacts: [
             {
                 name: String,
                 phone: String,
                 relation: String,
                 email: String,
                 is_primary: { type: Boolean, default: false },
+                can_view_data: { type: Boolean, default: false },
+                permissions: [String], // e.g. ['medications', 'mood', 'bp']
             },
         ],
+        care_instructions: {
+            type: String,
+            trim: true,
+        },
         gp_name: { type: String, trim: true },
         gp_phone: { type: String, trim: true },
         blood_type: {
