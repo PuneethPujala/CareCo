@@ -1,0 +1,526 @@
+process.env.NODE_ENV = 'test';
+const request = require('supertest');
+const app = require('../src/server');
+
+// Mock Supabase
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    auth: {
+      admin: {
+        createUser: jest.fn(),
+        signInWithPassword: jest.fn(),
+        signOut: jest.fn(),
+      },
+      getUser: jest.fn(),
+      refreshSession: jest.fn(),
+    },
+  })),
+}));
+
+// Mock Mongoose models
+jest.mock('../src/models/Profile');
+jest.mock('../src/models/Patient');
+jest.mock('../src/models/Organization');
+
+// Mock services
+jest.mock('../src/services/auditService');
+jest.mock('../src/services/emailService');
+
+// Mock middleware
+jest.mock('../src/middleware/authenticate', () => ({
+  authenticate: (req, res, next) => {
+    // Default mock - can be overridden in tests
+    req.user = { id: 'test-user' };
+    req.profile = { _id: 'test-profile', role: 'care_manager' };
+    next();
+  },
+  requireRole: () => (req, res, next) => next(),
+}));
+
+jest.mock('../src/middleware/authorize', () => ({
+  authorize: () => (req, res, next) => next(),
+  authorizeResource: () => (req, res, next) => next(),
+}));
+
+jest.mock('../src/middleware/checkPasswordChange', () => ({
+  checkPasswordChange: () => (req, res, next) => next(),
+}));
+
+jest.mock('../src/middleware/scopeFilter', () => ({
+  scopeFilter: () => (req, res, next) => {
+    req.scopeFilter = {};
+    next();
+  },
+}));
+
+const { createClient } = require('@supabase/supabase-js');
+const Profile = require('../src/models/Profile');
+const Patient = require('../src/models/Patient');
+const Organization = require('../src/models/Organization');
+const { logEvent, logSecurityEvent } = require('../src/services/auditService');
+const { sendTempPasswordEmail, sendPasswordChangedEmail } = require('../src/services/emailService');
+
+const { mockProfile, mockPatient, mockOrganization, mockAuditLog } = require('./helpers/mockModels');
+
+describe('Auth Routes', () => {
+  let supabaseMock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    supabaseMock = createClient();
+  });
+
+  describe('POST /api/auth/register', () => {
+    it('should return 400 for missing required fields', async () => {
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({ email: 'test@example.com' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Missing required fields');
+    });
+
+    it('should return 400 for duplicate email', async () => {
+      const mockError = new Error('Duplicate entry');
+      mockError.code = 11000;
+      
+      Profile.prototype.save = jest.fn().mockRejectedValue(mockError);
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'existing@example.com',
+          password: 'Password123',
+          fullName: 'Test User',
+          city: 'Hyderabad',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('already exists');
+    });
+
+    it('should register successfully with valid data', async () => {
+      const org = mockOrganization({ _id: 'org123', isActive: true });
+      org.canAdd = jest.fn().mockReturnValue(true);
+      
+      Organization.findOne = jest.fn().mockResolvedValue(org);
+      Organization.findById = jest.fn().mockResolvedValue(org);
+      Organization.findByIdAndUpdate = jest.fn().mockResolvedValue({});
+      
+      const profileData = mockProfile({ _id: 'profile123' });
+      const patientData = mockPatient({ _id: 'patient123' });
+      
+      Profile.prototype.save = jest.fn().mockResolvedValue(profileData);
+      Patient.prototype.save = jest.fn().mockResolvedValue(patientData);
+      
+      supabaseMock.auth.admin.createUser.mockResolvedValue({
+        data: { user: { id: 'sup-uid-123', email: 'test@example.com' } }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          fullName: 'Test User',
+          city: 'Hyderabad',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.message).toBe('Registration successful');
+      expect(logEvent).toHaveBeenCalledWith(
+        expect.any(String),
+        'profile_created',
+        'profile',
+        'profile123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 400 when no active organization found for city', async () => {
+      Organization.findOne = jest.fn().mockResolvedValue(null);
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          fullName: 'Test User',
+          city: 'NonexistentCity',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('No active organisation found');
+    });
+
+    it('should return 400 when organization has reached patient capacity', async () => {
+      const org = mockOrganization({ _id: 'org123', isActive: true });
+      org.canAdd = jest.fn().mockReturnValue(false);
+      
+      Organization.findOne = jest.fn().mockResolvedValue(org);
+      Organization.findById = jest.fn().mockResolvedValue(org);
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          fullName: 'Test User',
+          city: 'Hyderabad',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('reached its patient capacity');
+    });
+  });
+
+  describe('POST /api/auth/login', () => {
+    beforeEach(() => {
+      Profile.findOne = jest.fn();
+    });
+
+    it('should return 400 for missing fields', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'test@example.com' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Email and password are required');
+    });
+
+    it('should return 403 for wrong role', async () => {
+      const profile = mockProfile({ role: 'care_manager' });
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          role: 'patient', // Wrong role
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain('No account found for role "patient"');
+    });
+
+    it('should return 403 when no profile found', async () => {
+      Profile.findOne = jest.fn().mockResolvedValue(null);
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'nonexistent@example.com',
+          password: 'Password123',
+          role: 'patient',
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain('No account found with this email');
+    });
+
+    it('should return 401 for Supabase auth error', async () => {
+      const profile = mockProfile({ role: 'patient', isLocked: false });
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+      
+      supabaseMock.auth.admin.signInWithPassword.mockResolvedValue({
+        error: { message: 'Invalid login credentials' }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'wrongpassword',
+          role: 'patient',
+        });
+
+      expect(response.status).toBe(401);
+      expect(logSecurityEvent).toHaveBeenCalledWith(
+        'anonymous',
+        'login_failed',
+        'medium',
+        expect.any(String),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 423 for locked account', async () => {
+      const profile = mockProfile({ 
+        role: 'patient', 
+        isLocked: true,
+        accountLockedUntil: new Date(Date.now() + 60000) // 1 minute from now
+      });
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+      
+      supabaseMock.auth.admin.signInWithPassword.mockResolvedValue({
+        data: { user: { id: 'sup-uid-123' } }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          role: 'patient',
+        });
+
+      expect(response.status).toBe(423);
+      expect(response.body.error).toContain('Account is temporarily locked');
+    });
+
+    it('should login successfully with valid credentials', async () => {
+      const profile = mockProfile({ 
+        role: 'patient', 
+        isLocked: false,
+        organizationId: 'org123'
+      });
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+      
+      supabaseMock.auth.admin.signInWithPassword.mockResolvedValue({
+        data: { user: { id: 'sup-uid-123', email: 'test@example.com' } }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          email: 'test@example.com',
+          password: 'Password123',
+          role: 'patient',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user.email).toBe('test@example.com');
+      expect(logEvent).toHaveBeenCalledWith(
+        'sup-uid-123',
+        'login',
+        'auth',
+        profile._id,
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('POST /api/auth/logout', () => {
+    it('should return 401 for unauthenticated user', async () => {
+      const response = await request(app)
+        .post('/api/auth/logout');
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should logout successfully', async () => {
+      const profile = mockProfile({ supabaseUid: 'sup-uid-123' });
+      
+      // Override the default authenticate mock for this test
+      const { authenticate } = require('../src/middleware/authenticate');
+      authenticate.mockImplementation((req, res, next) => {
+        req.user = { id: 'sup-uid-123' };
+        req.profile = profile;
+        next();
+      });
+
+      supabaseMock.auth.admin.signOut.mockResolvedValue({});
+
+      const response = await request(app)
+        .post('/api/auth/logout');
+
+      expect(response.status).toBe(200);
+      expect(supabaseMock.auth.admin.signOut).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith(
+        'sup-uid-123',
+        'logout',
+        'auth',
+        profile._id,
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('POST /api/auth/refresh', () => {
+    it('should return 400 for missing token', async () => {
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Refresh token is required');
+    });
+
+    it('should return 401 for invalid token', async () => {
+      supabaseMock.auth.refreshSession.mockResolvedValue({
+        error: { message: 'Invalid refresh token' }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken: 'invalid-token' });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should refresh token successfully', async () => {
+      supabaseMock.auth.refreshSession.mockResolvedValue({
+        data: { 
+          session: { access_token: 'new-access-token', refresh_token: 'new-refresh-token' },
+          user: { id: 'sup-uid-123', email: 'test@example.com' }
+        }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken: 'valid-refresh-token' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.session.access_token).toBe('new-access-token');
+    });
+  });
+
+  describe('POST /api/auth/create-user', () => {
+    beforeEach(() => {
+      Profile.findOne = jest.fn();
+      Organization.findById = jest.fn();
+      Organization.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should create user successfully for super admin', async () => {
+      const adminProfile = mockProfile({ role: 'super_admin' });
+      const targetOrg = mockOrganization({ _id: 'org123' });
+      
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: () => (req, res, next) => {
+          req.user = { id: 'admin-uid' };
+          req.profile = adminProfile;
+          next();
+        },
+      }));
+
+      Profile.findOne = jest.fn().mockResolvedValue(null); // No existing user
+      Organization.findById = jest.fn().mockResolvedValue(targetOrg);
+      Organization.findByIdAndUpdate = jest.fn().mockResolvedValue({});
+      
+      const newProfile = mockProfile({ _id: 'new-profile-123' });
+      Profile.prototype.save = jest.fn().mockResolvedValue(newProfile);
+      
+      supabaseMock.auth.admin.createUser.mockResolvedValue({
+        data: { user: { id: 'new-user-uid' } }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/create-user')
+        .send({
+          email: 'newuser@example.com',
+          fullName: 'New User',
+          role: 'care_manager',
+          organizationId: 'org123',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.user.email).toBe('newuser@example.com');
+      expect(logEvent).toHaveBeenCalledWith(
+        'admin-uid',
+        'profile_created',
+        'profile',
+        'new-profile-123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('POST /api/auth/change-password', () => {
+    beforeEach(() => {
+      Profile.findOne = jest.fn();
+      Profile.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should change password successfully', async () => {
+      const profile = mockProfile({ 
+        _id: 'profile123',
+        email: 'test@example.com',
+        mustChangePassword: false
+      });
+      
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: () => (req, res, next) => {
+          req.user = { id: 'sup-uid-123' };
+          req.profile = profile;
+          next();
+        },
+      }));
+
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+      Profile.findByIdAndUpdate = jest.fn().mockResolvedValue(profile);
+      
+      const hashedPassword = '$2a$10$hashedpassword';
+      const bcrypt = require('bcryptjs');
+      bcrypt.hash = jest.fn().mockResolvedValue(hashedPassword);
+      
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: { user: { id: 'sup-uid-123' } }
+      });
+
+      const response = await request(app)
+        .post('/api/auth/change-password')
+        .send({
+          currentPassword: 'oldpassword',
+          newPassword: 'NewPassword123',
+        });
+
+      expect(response.status).toBe(200);
+      expect(sendPasswordChangedEmail).toHaveBeenCalledWith('test@example.com');
+      expect(logEvent).toHaveBeenCalledWith(
+        'sup-uid-123',
+        'password_changed',
+        'profile',
+        'profile123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('GET /api/auth/me', () => {
+    beforeEach(() => {
+      Profile.findOne = jest.fn();
+    });
+
+    it('should return current user profile', async () => {
+      const profile = mockProfile({ 
+        _id: 'profile123',
+        email: 'test@example.com',
+        role: 'care_manager'
+      });
+      
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: () => (req, res, next) => {
+          req.user = { id: 'sup-uid-123' };
+          req.profile = profile;
+          next();
+        },
+      }));
+
+      Profile.findOne = jest.fn().mockResolvedValue(profile);
+
+      const response = await request(app)
+        .get('/api/auth/me');
+
+      expect(response.status).toBe(200);
+      expect(response.body.profile.email).toBe('test@example.com');
+      expect(response.body.profile.role).toBe('care_manager');
+    });
+
+    it('should return 401 for unauthenticated user', async () => {
+      const response = await request(app)
+        .get('/api/auth/me');
+
+      expect(response.status).toBe(401);
+    });
+  });
+});

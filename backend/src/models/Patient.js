@@ -49,7 +49,6 @@ const PatientSchema = new mongoose.Schema(
         // ── Location ──────────────────────────────────
         city: {
             type: String,
-            required: true,
             trim: true,
             index: true,
         },

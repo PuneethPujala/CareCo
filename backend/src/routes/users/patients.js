@@ -411,4 +411,39 @@ router.post('/me/flag-issue', authenticate, async (req, res) => {
     }
 });
 
+router.get('/me/previous-callers', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(200).json({ previous_callers: [] });
+
+        const callerIds = await CallLog.find({ patient_id: patient._id })
+            .distinct('caller_id');
+
+        const previousCallerIds = callerIds.filter(
+            (id) => id?.toString() !== patient.assigned_caller_id?.toString()
+        );
+
+        if (previousCallerIds.length === 0)
+            return res.status(200).json({ previous_callers: [] });
+
+        const previousCallers = await Caller.find({ _id: { $in: previousCallerIds } })
+            .select('name employee_id languages_spoken experience_years city');
+
+        const callersWithCount = await Promise.all(
+            previousCallers.map(async (caller) => {
+                const total_calls = await CallLog.countDocuments({
+                    patient_id: patient._id,
+                    caller_id: caller._id,
+                });
+                return { ...caller.toJSON(), total_calls };
+            })
+        );
+
+        res.json({ previous_callers: callersWithCount });
+    } catch (error) {
+        console.error('Get previous callers error:', error);
+        res.status(500).json({ error: 'Failed to get previous callers' });
+    }
+});
+
 module.exports = router;

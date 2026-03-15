@@ -14,9 +14,9 @@
  */
 const scopeFilter = (resourceType) => {
     return async (req, res, next) => {
-        const { role, _id: profileId, organizationId } = req.profile;
-
         try {
+            const { role, _id: profileId, organizationId } = req.profile;
+
             switch (role) {
 
                 case 'super_admin':

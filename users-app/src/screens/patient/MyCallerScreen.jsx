@@ -1,305 +1,463 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Modal, ActivityIndicator, Linking, Animated } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, Platform,
+  Pressable, ActivityIndicator, Linking, Animated,
+} from 'react-native';
+import {
+  Phone, PhoneIncoming, AlertTriangle, ShieldCheck,
+  Flag, Clock, Globe, Calendar, ChevronRight,
+} from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Phone, PhoneIncoming, AlertTriangle, ShieldCheck, Flag, CalendarCheck, Globe, ChevronRight, X, Bell, Info, PhoneOff } from 'lucide-react-native';
 import { colors } from '../../theme';
 import { apiService } from '../../lib/api';
 
+const C = {
+  primary:     '#3B82F6',
+  primaryDark: '#1D4ED8',
+  primarySoft: '#EFF6FF',
+  cardBg:      '#FFFFFF',
+  pageBg:      '#F8FAFC',
+  dark:        '#0F172A',
+  mid:         '#1E293B',
+  muted:       '#64748B',
+  light:       '#94A3B8',
+  border:      '#F1F5F9',
+  borderMid:   '#E2E8F0',
+  success:     '#22C55E',
+  successBg:   '#F0FDF4',
+  danger:      '#EF4444',
+  dangerBg:    '#FEF2F2',
+  warning:     '#F59E0B',
+  warningBg:   '#FEFCE8',
+};
+
 const STATUS_CONFIG = {
-    completed: { accent: colors.success, Icon: PhoneIncoming, label: 'Completed' },
-    missed: { accent: colors.danger, Icon: AlertTriangle, label: 'Missed' },
-    attempted: { accent: colors.warning, Icon: PhoneIncoming, label: 'Attempted' },
-    refused: { accent: '#EF4444', Icon: AlertTriangle, label: 'Refused' },
+  completed:   { color: C.success,  bg: C.successBg,  Icon: PhoneIncoming, label: 'Completed'   },
+  missed:      { color: C.danger,   bg: C.dangerBg,   Icon: AlertTriangle, label: 'Missed'      },
+  attempted:   { color: C.warning,  bg: C.warningBg,  Icon: Clock,         label: 'Attempted'   },
+  refused:     { color: C.danger,   bg: C.dangerBg,   Icon: AlertTriangle, label: 'Refused'     },
+  rescheduled: { color: C.warning,  bg: C.warningBg,  Icon: Calendar,      label: 'Rescheduled' },
 };
 
 export default function MyCallerScreen({ navigation }) {
-    const [patient, setPatient] = useState(null);
-    const [caller, setCaller] = useState(null);
-    const [calls, setCalls] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [detailVisible, setDetailVisible] = useState(false);
+  const [patient, setPatient]                 = useState(null);
+  const [caller, setCaller]                   = useState(null);
+  const [calls, setCalls]                     = useState([]);
+  const [previousCallers, setPreviousCallers] = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [callPressed, setCallPressed]         = useState(false);
+  const [flagPressed, setFlagPressed]         = useState(false);
 
-    const staggerAnims = React.useRef([...Array(10)].map(() => new Animated.Value(0))).current;
+  const staggerAnims = useRef([...Array(20)].map(() => new Animated.Value(0))).current;
 
-    const runAnimations = React.useCallback(() => {
-        staggerAnims.forEach(anim => anim.setValue(0));
-        Animated.stagger(100,
-            staggerAnims.map(anim =>
-                Animated.spring(anim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true })
-            )
-        ).start();
-    }, [staggerAnims]);
+  const runAnimations = useCallback(() => {
+    staggerAnims.forEach(a => a.setValue(0));
+    Animated.stagger(55,
+      staggerAnims.map(a =>
+        Animated.spring(a, { toValue: 1, friction: 8, tension: 42, useNativeDriver: true }),
+      ),
+    ).start();
+  }, [staggerAnims]);
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const pRes = await apiService.patients.getMe();
-                setPatient(pRes.data.patient);
+  useEffect(() => {
+    (async () => {
+      try {
+        const pRes = await apiService.patients.getMe();
+        setPatient(pRes.data.patient);
+        if (pRes.data.patient?.subscription?.plan !== 'free') {
+          const [callerRes, callsRes, prevRes] = await Promise.all([
+            apiService.patients.getMyCaller(),
+            apiService.patients.getMyCalls(),
+            apiService.patients.getPreviousCallers(),
+          ]);
+          setCaller(callerRes.data.caller);
+          setCalls(callsRes.data.calls || []);
+          setPreviousCallers(prevRes.data.previous_callers || []);
+          runAnimations();
+        }
+      } catch (err) {
+        console.warn('Failed to load caller data:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [runAnimations]);
 
-                if (pRes.data.patient?.subscription?.plan !== 'free') {
-                    const [callerRes, callsRes] = await Promise.all([
-                        apiService.patients.getMyCaller(),
-                        apiService.patients.getMyCalls(),
-                    ]);
-                    setCaller(callerRes.data.caller);
-                    setCalls(callsRes.data.calls || []);
-                    runAnimations();
-                }
-            } catch (err) {
-                console.warn('Failed to load caller data:', err.message);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [runAnimations]);
+  const formatDate = (dateStr) => {
+    const d   = new Date(dateStr);
+    const now = new Date();
+    const isToday     = d.toDateString() === now.toDateString();
+    const isYesterday = d.toDateString() === new Date(now - 86400000).toDateString();
+    const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    if (isToday)     return `Today, ${time}`;
+    if (isYesterday) return `Yesterday, ${time}`;
+    return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
 
+  const formatDuration = (seconds) => {
+    if (!seconds || seconds === 0) return null;
+    return `${Math.floor(seconds / 60)} min`;
+  };
 
-
-    const formatDate = (dateStr) => {
-        const d = new Date(dateStr);
-        const now = new Date();
-        const isToday = d.toDateString() === now.toDateString();
-        const isYesterday = d.toDateString() === new Date(now - 86400000).toDateString();
-        const time = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-        if (isToday) return `Today, ${time}`;
-        if (isYesterday) return `Yesterday, ${time}`;
-        return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
-    };
-
-    const formatDuration = (seconds) => {
-        if (!seconds || seconds === 0) return 'N/A';
-        return `${Math.floor(seconds / 60)} min`;
-    };
-
-    if (loading) {
-        return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-        );
-    }
-
-    if (patient?.subscription?.plan === 'free') {
-        return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-                <ShieldCheck size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
-                <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
-                    A dedicated care team caller is included in the Basic Plan. Upgrade on the Home screen to get matched with a caller from your city.
-                </Text>
-            </View>
-        );
-    }
-
+  // ── Loading ──────────────────────────────────────────────────────
+  if (loading) {
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
-                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
-                <Text style={styles.headerLabel}>CareCo</Text>
-                <Text style={styles.headerTitle}>Assigned Companions</Text>
-                <Pressable style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
-                    <Bell size={22} color="#FFFFFF" strokeWidth={2} />
-                </Pressable>
-            </LinearGradient>
-
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-                    <Text style={styles.sectionHeader}>YOUR CARE TEAM</Text>
-
-                    {caller ? (
-                        <Pressable style={styles.callerCardEnhanced} onPress={() => setDetailVisible(true)}>
-                            <View style={styles.avatarWrapSmall}>
-                                <View style={styles.avatarSmall}><Text style={styles.avatarTxtSmall}>{caller.name?.charAt(0)}</Text></View>
-                                <View style={styles.onlineDot} />
-                            </View>
-                            <View style={styles.callerListContent}>
-                                <Text style={styles.callerListName}>{caller.name}</Text>
-                                <View style={styles.idRow}>
-                                    <ShieldCheck size={14} color="#16A34A" />
-                                    <Text style={styles.callerListSub}>ID: {caller.employee_id} • {caller.experience_years} yrs</Text>
-                                </View>
-                                <View style={styles.langRow}>
-                                    <Globe size={13} color={colors.accent} />
-                                    <Text style={styles.callerListBottom}>{caller.languages_spoken?.join(', ')}</Text>
-                                </View>
-                            </View>
-                            <ChevronRight size={20} color="#CBD5E1" />
-                        </Pressable>
-                    ) : (
-                        <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 20 }}>No caller assigned yet.</Text>
-                    )}
-                </Animated.View>
-
-                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-                    <Text style={[styles.sectionHeader, { marginTop: 24 }]}>QUICK HISTORY</Text>
-                    {calls.slice(0, 3).map((call) => {
-                        const config = STATUS_CONFIG[call.status] || STATUS_CONFIG.completed;
-                        const Icon = config.Icon;
-                        return (
-                            <View key={call._id} style={styles.historyCardMini}>
-                                <View style={[styles.historyIconBoxMini, { backgroundColor: config.accent + '15' }]}>
-                                    <Icon size={16} color={config.accent} strokeWidth={2.5} />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.historyCardTitle}>{formatDate(call.call_date)}</Text>
-                                    <Text style={styles.historyCardSub} numberOfLines={1}>{call.ai_summary || 'Routine check-in call.'}</Text>
-                                </View>
-                                <Text style={[styles.durationTxtMini, { color: call.status === 'missed' ? colors.danger : '#64748B' }]}>
-                                    {formatDuration(call.call_duration_seconds)}
-                                </Text>
-                            </View>
-                        );
-                    })}
-                </Animated.View>
-            </ScrollView>
-
-
-            {/* Detail Modal */}
-            <Modal visible={detailVisible} animationType="slide" transparent={false} onRequestClose={() => setDetailVisible(false)}>
-                <View style={styles.container}>
-                    <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.detailHeaderGradient}>
-                        <View style={styles.detailHeaderTopRow}>
-                            <Pressable onPress={() => setDetailVisible(false)} hitSlop={10}>
-                                <X size={24} color="#FFFFFF" strokeWidth={2.5} />
-                            </Pressable>
-                        </View>
-                        <View style={styles.detailAvatarRow}>
-                            <View style={styles.avatarLargeWrap}>
-                                <View style={styles.avatarLarge}><Text style={styles.avatarTxtLarge}>{caller?.name?.charAt(0)}</Text></View>
-                            </View>
-                            <View>
-                                <Text style={styles.detailName}>{caller?.name}</Text>
-                                <Text style={styles.detailId}>ID: {caller?.employee_id}</Text>
-                                <Text style={styles.detailOnline}>● Online Now</Text>
-                            </View>
-                        </View>
-                        <View style={styles.statsMap}>
-                            <View style={styles.statCol}><CalendarCheck size={16} color="#BDD4EE" /><Text style={styles.statColVal}>{caller?.experience_years} yrs</Text><Text style={styles.statColLabel}>Experience</Text></View>
-                            <View style={styles.statDivider} />
-                            <View style={styles.statCol}><Globe size={16} color="#BDD4EE" /><Text style={styles.statColVal}>{caller?.languages_spoken?.join(', ')}</Text><Text style={styles.statColLabel}>Languages</Text></View>
-                            <View style={styles.statDivider} />
-                            <View style={styles.statCol}><ShieldCheck size={16} color="#BDD4EE" /><Text style={styles.statColVal}>Certified</Text><Text style={styles.statColLabel}>Status</Text></View>
-                        </View>
-                    </LinearGradient>
-
-                    <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-                        <View style={styles.actionRow}>
-                            <Pressable style={styles.callBtnFull} onPress={() => caller?.phone && Linking.openURL(`tel:${caller.phone}`)}>
-                                <Phone size={18} color="#FFFFFF" strokeWidth={2.5} /><Text style={styles.callBtnText}>Call Now</Text>
-                            </Pressable>
-                            <Pressable style={styles.flagBtnFull}>
-                                <Flag size={18} color={colors.danger} strokeWidth={2.5} /><Text style={styles.flagBtnText}>Flag Issue</Text>
-                            </Pressable>
-                        </View>
-
-                        <Text style={styles.sectionHeader}>CALL HISTORY</Text>
-                        {calls.map((call) => {
-                            const config = STATUS_CONFIG[call.status] || STATUS_CONFIG.completed;
-                            const Icon = config.Icon;
-                            return (
-                                <View key={call._id} style={styles.historyCard}>
-                                    <View style={[styles.historyAccentBar, { backgroundColor: config.accent }]} />
-                                    <View style={styles.historyCardInner}>
-                                        <View style={[styles.historyIconBox, { backgroundColor: config.accent + '15' }]}>
-                                            <Icon size={18} color={config.accent} strokeWidth={2.5} />
-                                        </View>
-                                        <View style={styles.historyContent}>
-                                            <View style={styles.historyTopRow}>
-                                                <Text style={styles.historyDate}>{formatDate(call.call_date)}</Text>
-                                                <Text style={[styles.durationTxt, { color: call.status === 'missed' ? colors.danger : '#64748B' }]}>
-                                                    {formatDuration(call.call_duration_seconds)}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.historySummary}>{call.ai_summary || 'No summary available.'}</Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            );
-                        })}
-                        {calls.length === 0 && <Text style={{ color: '#94A3B8', textAlign: 'center' }}>No call history yet.</Text>}
-                    </ScrollView>
-                </View>
-            </Modal>
-        </View>
+      <View style={[s.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.accent} />
+      </View>
     );
+  }
+
+  // ── Free plan gate ───────────────────────────────────────────────
+  if (patient?.subscription?.plan === 'free') {
+    return (
+      <View style={[s.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+        <ShieldCheck size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>
+          Premium Feature
+        </Text>
+        <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
+          A dedicated care team caller is included in the Basic Plan. Upgrade on the Home screen to
+          get matched with a caller from your city.
+        </Text>
+      </View>
+    );
+  }
+
+  // ── Main ─────────────────────────────────────────────────────────
+  return (
+    <View style={s.container}>
+
+      {/* ── Header — exactly matching HealthProfileScreen ── */}
+      <LinearGradient
+        colors={['#0A2463', '#1E5FAD']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.header}
+      >
+        <View style={[s.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
+        <View style={[s.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
+        <Text style={s.headerLabel}>CareCo</Text>
+        <Text style={s.headerTitle}>Your Care Team</Text>
+      </LinearGradient>
+
+      <ScrollView
+        style={s.body}
+        contentContainerStyle={s.bodyContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {caller ? (
+          <>
+            {/* ── Caller Profile Card ── */}
+            <Animated.View style={{
+              opacity: staggerAnims[0],
+              transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            }}>
+              <View style={s.callerCard}>
+
+                {/* Avatar + name */}
+                <View style={s.profileRow}>
+                  <View style={s.avatarWrap}>
+                    <LinearGradient colors={['#1E5FAD', '#0A2463']} style={s.avatar}>
+                      <Text style={s.avatarLetter}>{caller.name?.charAt(0)}</Text>
+                    </LinearGradient>
+                    <View style={s.onlineDot} />
+                  </View>
+                  <View style={s.profileInfo}>
+                    <Text style={s.callerName}>{caller.name}</Text>
+                    <View style={s.metaRow}>
+                      <View style={s.idChip}>
+                        <Text style={s.idChipText}>{caller.employee_id}</Text>
+                      </View>
+                      <View style={s.onlinePill}>
+                        <View style={s.onlinePillDot} />
+                        <Text style={s.onlinePillText}>Online Now</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Stats strip */}
+                <View style={s.statsStrip}>
+                  <View style={s.statItem}>
+                    <Clock size={16} color={colors.accent} strokeWidth={1.8} />
+                    <Text style={s.statVal}>{caller.experience_years} yrs</Text>
+                    <Text style={s.statLbl}>Experience</Text>
+                  </View>
+                  <View style={s.statDivider} />
+                  <View style={s.statItem}>
+                    <Globe size={16} color={colors.accent} strokeWidth={1.8} />
+                    <Text style={[s.statVal, { fontSize: 12 }]} numberOfLines={1}>
+                      {caller.languages_spoken?.slice(0, 3).join(' · ')}
+                    </Text>
+                    <Text style={s.statLbl}>Languages</Text>
+                  </View>
+                  <View style={s.statDivider} />
+                  <View style={s.statItem}>
+                    <ShieldCheck size={16} color={colors.accent} strokeWidth={1.8} />
+                    <Text style={s.statVal}>Certified</Text>
+                    <Text style={s.statLbl}>Status</Text>
+                  </View>
+                </View>
+
+                {/* Buttons */}
+                <View style={s.actionRow}>
+                  <Pressable
+                    style={[s.btnCall, callPressed && s.btnPressed]}
+                    onPressIn={() => setCallPressed(true)}
+                    onPressOut={() => setCallPressed(false)}
+                    onPress={() => caller?.phone && Linking.openURL(`tel:${caller.phone}`)}
+                  >
+                    <LinearGradient
+                      colors={['#1E5FAD', '#0A2463']}
+                      start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                      style={s.btnCallGrad}
+                    >
+                      <Phone size={16} color="#FFF" strokeWidth={2.2} />
+                      <Text style={s.btnCallText}>Call Now</Text>
+                    </LinearGradient>
+                  </Pressable>
+                  <Pressable
+                    style={[s.btnFlag, flagPressed && s.btnPressed]}
+                    onPressIn={() => setFlagPressed(true)}
+                    onPressOut={() => setFlagPressed(false)}
+                  >
+                    <Flag size={16} color={C.danger} strokeWidth={2} />
+                    <Text style={s.btnFlagText}>Flag Issue</Text>
+                  </Pressable>
+                </View>
+
+              </View>
+            </Animated.View>
+
+            {/* ── Previous Callers ── */}
+            <Animated.View style={{
+              opacity: staggerAnims[1],
+              transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            }}>
+              <View style={s.sectionHead}>
+                <View style={s.sectionBar} />
+                <Text style={s.sectionTitle}>Previous Callers</Text>
+              </View>
+
+              {previousCallers.length === 0 ? (
+                <Text style={s.emptyTxt}>No previous callers.</Text>
+              ) : (
+                previousCallers.map((pc, i) => (
+                  <Animated.View key={pc._id} style={{
+                    opacity: staggerAnims[i + 2],
+                    transform: [{ translateY: staggerAnims[i + 2].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                  }}>
+                    <Pressable
+                      style={s.prevCard}
+                      onPress={() => navigation.navigate('CallerProfile', { callerId: pc._id })}
+                    >
+                      <View style={s.prevAvatarRing}>
+                        <View style={s.prevAvatar}>
+                          <Text style={s.prevAvatarText}>{pc.name?.charAt(0)}</Text>
+                        </View>
+                      </View>
+                      <View style={s.prevInfo}>
+                        <Text style={s.prevName}>{pc.name}</Text>
+                        <Text style={s.prevMeta}>ID: {pc.employee_id} • {pc.total_calls || 0} calls</Text>
+                      </View>
+                      <ChevronRight size={16} color={C.light} />
+                    </Pressable>
+                  </Animated.View>
+                ))
+              )}
+            </Animated.View>
+
+            {/* ── Call History ── */}
+            <Animated.View style={{
+              opacity: staggerAnims[2],
+              transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }],
+            }}>
+              <View style={s.sectionHead}>
+                <View style={s.sectionBar} />
+                <Text style={s.sectionTitle}>Call History</Text>
+              </View>
+
+              {calls.length === 0 ? (
+                <Text style={s.emptyTxt}>No call history yet.</Text>
+              ) : (
+                calls.map((call, i) => {
+                  const cfg      = STATUS_CONFIG[call.status] || STATUS_CONFIG.completed;
+                  const Icon     = cfg.Icon;
+                  const duration = formatDuration(call.call_duration_seconds);
+                  return (
+                    <Animated.View key={call._id} style={{
+                      opacity: staggerAnims[i + 3],
+                      transform: [{ translateY: staggerAnims[i + 3].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                    }}>
+                      <View style={[s.historyCard, call.status === 'missed' && s.historyCardMissed]}>
+                        <View style={[s.historyIconBox, { backgroundColor: cfg.bg }]}>
+                          <Icon size={17} color={cfg.color} strokeWidth={2} />
+                        </View>
+                        <View style={s.historyBody}>
+                          <View style={s.historyTop}>
+                            <Text style={s.historyDate}>{formatDate(call.call_date)}</Text>
+                            <View style={[s.badge, { backgroundColor: duration ? C.primarySoft : cfg.bg }]}>
+                              <Text style={[s.badgeText, { color: duration ? C.primaryDark : cfg.color }]}>
+                                {duration || cfg.label}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={s.historyNote} numberOfLines={2}>
+                            {call.ai_summary || 'Routine check-in call.'}
+                          </Text>
+                        </View>
+                      </View>
+                    </Animated.View>
+                  );
+                })
+              )}
+            </Animated.View>
+          </>
+        ) : (
+          <Text style={s.emptyTxt}>No caller assigned yet.</Text>
+        )}
+      </ScrollView>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    header: {
-        height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
-        alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
-    },
-    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
-    headerLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-    bellBtn: { position: 'absolute', right: 20, top: Platform.OS === 'ios' ? 70 : 50, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.pageBg },
 
-    body: { flex: 1 },
-    bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
+  // ── Header — identical to HealthProfileScreen ──
+  header: {
+    height: 140,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    overflow: 'hidden',
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  headerLabel: {
+    fontSize: 12, fontWeight: '700',
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 1, marginBottom: 4,
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
 
-    sectionHeader: { fontSize: 13, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
+  // ── Body ──
+  body: { flex: 1 },
+  bodyContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 110 },
 
-    callerCardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 6 },
-    callerTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    avatarEnhanced: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(58,134,255,0.1)' },
-    avatarTxt: { fontSize: 22, fontWeight: '800', color: colors.accent },
-    onlineDot: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#22C55E', borderWidth: 2.5, borderColor: '#FFF' },
-    callerInfo: { flex: 1, marginLeft: 16 },
-    callerName: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
-    relationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-    callerRelation: { fontSize: 13, color: '#64748B', fontWeight: '600' },
-    infoBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
-    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 16 },
-    callerDetails: { flexDirection: 'row', gap: 20 },
-    detailItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    detailText: { fontSize: 13, fontWeight: '600', color: '#64748B' },
-    idRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-    langRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  // ── Caller card ──
+  callerCard: {
+    backgroundColor: C.cardBg,
+    borderRadius: 24, padding: 24, marginBottom: 20,
+    shadowColor: '#0A2463',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05, shadowRadius: 20, elevation: 4,
+    borderWidth: 1, borderColor: C.border,
+  },
 
-    historyCardMini: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 8, elevation: 2 },
-    historyIconBoxMini: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-    historyCardTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-    historyCardSub: { fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '500' },
-    durationTxtMini: { fontSize: 12, fontWeight: '700' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  avatarWrap: { position: 'relative', marginRight: 16 },
+  avatar: { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 26, fontWeight: '800', color: '#FFF' },
+  onlineDot: {
+    position: 'absolute', bottom: -1, right: -1,
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: C.success, borderWidth: 2.5, borderColor: C.cardBg,
+  },
 
-    detailHeaderGradient: { paddingTop: Platform.OS === 'ios' ? 60 : 40, paddingBottom: 24, paddingHorizontal: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
-    detailHeaderTopRow: { marginBottom: 20 },
-    detailAvatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-    avatarLargeWrap: { marginRight: 20 },
-    avatarLarge: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10 },
-    avatarTxtLarge: { fontSize: 32, fontWeight: '800', color: colors.primary },
-    detailName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
-    detailId: { fontSize: 14, color: '#BDD4EE', marginTop: 4, fontWeight: '600' },
-    detailOnline: { fontSize: 13, fontWeight: '700', color: '#4ADE80', marginTop: 8 },
+  profileInfo: { flex: 1 },
+  callerName: { fontSize: 21, fontWeight: '800', color: C.dark, marginBottom: 7, letterSpacing: -0.3 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  idChip: { backgroundColor: C.primarySoft, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  idChipText: {
+    fontSize: 11, fontWeight: '700', color: C.primaryDark,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  onlinePillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success },
+  onlinePillText: { fontSize: 12, fontWeight: '600', color: '#15803D' },
 
-    statsMap: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: 20 },
-    statCol: { flex: 1, alignItems: 'center' },
-    statColVal: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', marginTop: 8 },
-    statColLabel: { fontSize: 11, color: '#BDD4EE', marginTop: 4, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-    statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginHorizontal: 10 },
+  statsStrip: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.borderMid,
+    paddingVertical: 14, marginBottom: 20,
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 5 },
+  statVal: { fontSize: 14, fontWeight: '700', color: C.mid, textAlign: 'center', marginTop: 4 },
+  statLbl: { fontSize: 10, fontWeight: '800', color: C.light, letterSpacing: 0.8, textTransform: 'uppercase' },
+  statDivider: { width: 1, height: 36, backgroundColor: C.borderMid },
 
-    actionRow: { flexDirection: 'row', gap: 12, marginBottom: 32, marginTop: 16 },
-    callBtnFull: { flex: 1, flexDirection: 'row', backgroundColor: colors.accent, borderRadius: 14, height: 56, alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
-    callBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-    flagBtnFull: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#FEE2E2', borderRadius: 14, height: 56 },
-    flagBtnText: { color: colors.danger, fontSize: 15, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: 10 },
+  btnCall: {
+    flex: 1.3, borderRadius: 24, overflow: 'hidden',
+    shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+  },
+  btnCallGrad: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, height: 50,
+  },
+  btnCallText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  btnFlag: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, height: 50, borderRadius: 24,
+    backgroundColor: C.cardBg, borderWidth: 1.5, borderColor: C.borderMid,
+  },
+  btnFlagText: { fontSize: 14, fontWeight: '700', color: C.danger },
+  btnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
 
-    historyCard: { backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 4 },
-    historyAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
-    historyCardInner: { flexDirection: 'row', padding: 18, paddingLeft: 22, alignItems: 'center' },
-    historyIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-    historyContent: { flex: 1 },
-    historyTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-    historyDate: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
-    durationTxt: { fontSize: 13, fontWeight: '700' },
-    historySummary: { fontSize: 14, color: '#475569', lineHeight: 22, fontWeight: '500' },
+  // ── Section headers ──
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12, marginTop: 4 },
+  sectionBar: { width: 3, height: 15, backgroundColor: colors.accent, borderRadius: 2 },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: C.light, letterSpacing: 1.2, textTransform: 'uppercase' },
 
-    emptyCard: { backgroundColor: '#F8FAFC', borderRadius: 20, padding: 32, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0' },
-    emptyTxt: { color: '#94A3B8', fontSize: 15, fontWeight: '600' },
-    emptyLogs: { alignItems: 'center', marginTop: 40, opacity: 0.5 },
-    emptyLogsTxt: { marginTop: 12, color: '#64748B', fontWeight: '600' },
+  // ── Previous callers ──
+  prevCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.cardBg, borderRadius: 20,
+    padding: 16, marginBottom: 10,
+    shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04, shadowRadius: 12, elevation: 2,
+    borderWidth: 1, borderColor: C.border,
+  },
+  prevAvatarRing: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: C.primarySoft,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+  },
+  prevAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#1E5FAD', alignItems: 'center', justifyContent: 'center',
+  },
+  prevAvatarText: { fontSize: 17, fontWeight: '800', color: '#FFF' },
+  prevInfo: { flex: 1 },
+  prevName: { fontSize: 15, fontWeight: '700', color: C.dark, marginBottom: 3 },
+  prevMeta: { fontSize: 13, color: C.muted, fontWeight: '500' },
+
+  // ── Call history ──
+  historyCard: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    backgroundColor: C.cardBg, borderRadius: 20,
+    padding: 16, marginBottom: 10,
+    shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04, shadowRadius: 12, elevation: 2,
+    borderWidth: 1, borderColor: C.border,
+  },
+  historyCardMissed: { backgroundColor: C.dangerBg, borderColor: '#FECACA' },
+  historyIconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  historyBody: { flex: 1 },
+  historyTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  historyDate: { fontSize: 13, fontWeight: '700', color: C.mid },
+  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText: { fontSize: 11, fontWeight: '800' },
+  historyNote: { fontSize: 13, color: C.muted, lineHeight: 18, fontWeight: '500' },
+
+  // ── Empty ──
+  emptyTxt: { fontSize: 14, color: C.light, fontStyle: 'italic', paddingVertical: 10, textAlign: 'center' },
 });
-

@@ -62,6 +62,7 @@ export const apiService = {
         register: (data) => api.post('/auth/register', data),
         getProfile: (config) => api.get('/auth/me', config),
         updateProfile: (data) => api.put('/auth/me', data),
+        updatePatientCity: (data) => api.put('/auth/patient-city', data),
         changePassword: (data) => api.post('/auth/change-password', data),
         resetPassword: (email) => api.post('/auth/reset-password', { email }),
     },
@@ -78,6 +79,7 @@ export const apiService = {
         getMyCalls: (params) => api.get('/users/patients/me/calls', { params }),
         getMyMedications: () => api.get('/users/patients/me/medications'),
         flagIssue: (data) => api.post('/users/patients/me/flag-issue', data),
+        getPreviousCallers: () => api.get('/users/patients/me/previous-callers'),
     },
 
     // Caller-specific endpoints

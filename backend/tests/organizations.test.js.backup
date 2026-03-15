@@ -1,0 +1,555 @@
+process.env.NODE_ENV = 'test';
+const request = require('supertest');
+const app = require('../src/server');
+
+// Mock Mongoose models
+jest.mock('../src/models/Organization');
+jest.mock('../src/models/Profile');
+
+// Mock services
+jest.mock('../src/services/auditService');
+
+const Organization = require('../src/models/Organization');
+const Profile = require('../src/models/Profile');
+const { logEvent, autoLogAccess } = require('../src/services/auditService');
+
+const { mockOrganization, mockProfile } = require('./helpers/mockModels');
+const { fakeAuthenticate } = require('./helpers/mockAuth');
+
+describe('Organizations Routes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('GET /api/organizations', () => {
+    beforeEach(() => {
+      Organization.find = jest.fn();
+      Organization.countDocuments = jest.fn();
+    });
+
+    it('should return organizations for super_admin', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const organizations = [
+        mockOrganization({ _id: 'org1', name: 'Org 1' }),
+        mockOrganization({ _id: 'org2', name: 'Org 2' }),
+      ];
+      
+      Organization.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue(organizations)
+      });
+      Organization.countDocuments = jest.fn().mockResolvedValue(2);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations')
+        .query({ page: 1, limit: 20 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.organizations).toHaveLength(2);
+      expect(response.body.pagination.total).toBe(2);
+      expect(autoLogAccess).toHaveBeenCalledWith('organizations', 'read');
+    });
+
+    it('should return 403 for non-super_admin', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => {
+          const error = new Error('Access denied');
+          error.status = 403;
+          throw error;
+        },
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations');
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should apply search filter', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const organizations = [mockOrganization({ name: 'Test Organization' })];
+      
+      Organization.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue(organizations)
+      });
+      Organization.countDocuments = jest.fn().mockResolvedValue(1);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations')
+        .query({ search: 'Test' });
+
+      expect(response.status).toBe(200);
+      expect(Organization.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: [
+            { name: { $regex: 'Test', $options: 'i' } },
+            { email: { $regex: 'Test', $options: 'i' } },
+            { city: { $regex: 'Test', $options: 'i' } },
+          ]
+        })
+      );
+    });
+
+    it('should apply pagination', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      Organization.find = jest.fn().mockReturnValue({
+        sort: jest.fn().mockResolvedValue([])
+      });
+      Organization.countDocuments = jest.fn().mockResolvedValue(0);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations')
+        .query({ page: 2, limit: 10 });
+
+      expect(response.status).toBe(200);
+      expect(Organization.find).toHaveBeenCalled();
+      expect(response.body.pagination.page).toBe(2);
+      expect(response.body.pagination.limit).toBe(10);
+    });
+  });
+
+  describe('POST /api/organizations', () => {
+    beforeEach(() => {
+      Organization.findOne = jest.fn();
+      Organization.prototype.save = jest.fn();
+    });
+
+    it('should create organization successfully', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const newOrg = mockOrganization({ 
+        _id: 'new-org-123',
+        name: 'New Organization'
+      });
+      
+      Organization.findOne = jest.fn().mockResolvedValue(null); // No duplicate
+      Organization.prototype.save = jest.fn().mockResolvedValue(newOrg);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .post('/api/organizations')
+        .send({
+          name: 'New Organization',
+          email: 'admin@neworg.com',
+          city: 'Hyderabad',
+          phone: '+919999999999',
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.name).toBe('New Organization');
+      expect(logEvent).toHaveBeenCalledWith(
+        superAdminProfile.supabaseUid,
+        'organization_created',
+        'organization',
+        'new-org-123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 400 for duplicate name', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const existingOrg = mockOrganization({ name: 'Existing Organization' });
+      Organization.findOne = jest.fn().mockResolvedValue(existingOrg);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .post('/api/organizations')
+        .send({
+          name: 'Existing Organization',
+          email: 'admin@existing.com',
+          city: 'Hyderabad',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Organization with this name already exists');
+    });
+
+    it('should return 400 for missing required fields', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .post('/api/organizations')
+        .send({
+          email: 'admin@test.com',
+          // Missing name, city
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain('Missing required fields');
+    });
+  });
+
+  describe('GET /api/organizations/:id', () => {
+    beforeEach(() => {
+      Organization.findById = jest.fn();
+    });
+
+    it('should allow super_admin to see any organization', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const organization = mockOrganization({ 
+        _id: 'org123',
+        name: 'Test Organization'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(organization);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations/org123');
+
+      expect(response.status).toBe(200);
+      expect(response.body._id).toBe('org123');
+    });
+
+    it('should allow org_admin to see own organization only', async () => {
+      const adminProfile = mockProfile({ 
+        role: 'org_admin',
+        organizationId: 'org123'
+      });
+      
+      const organization = mockOrganization({ 
+        _id: 'org123',
+        name: 'Test Organization'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(organization);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(adminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations/org123');
+
+      expect(response.status).toBe(200);
+      expect(response.body._id).toBe('org123');
+    });
+
+    it('should return 403 for org_admin accessing different org', async () => {
+      const adminProfile = mockProfile({ 
+        role: 'org_admin',
+        organizationId: 'org456' // Different org
+      });
+      
+      const organization = mockOrganization({ 
+        _id: 'org123',
+        name: 'Test Organization'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(organization);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(adminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations/org123');
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain('Access denied to this organization');
+    });
+
+    it('should return 404 for missing organization', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(null);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/organizations/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Organization not found');
+    });
+  });
+
+  describe('PUT /api/organizations/:id', () => {
+    beforeEach(() => {
+      Organization.findById = jest.fn();
+      Organization.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should update organization successfully', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const organization = mockOrganization({ 
+        _id: 'org123',
+        name: 'Old Name'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(organization);
+      Organization.findByIdAndUpdate = jest.fn().mockResolvedValue({ ...organization, name: 'New Name' });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .put('/api/organizations/org123')
+        .send({ name: 'New Name', city: 'New City' });
+
+      expect(response.status).toBe(200);
+      expect(Organization.findByIdAndUpdate).toHaveBeenCalledWith(
+        'org123',
+        { name: 'New Name', city: 'New City' },
+        { new: true, runValidators: true }
+      );
+      expect(logEvent).toHaveBeenCalledWith(
+        superAdminProfile.supabaseUid,
+        'organization_updated',
+        'organization',
+        'org123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 404 for missing organization', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(null);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .put('/api/organizations/nonexistent')
+        .send({ name: 'New Name' });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Organization not found');
+    });
+  });
+
+  describe('DELETE /api/organizations/:id', () => {
+    beforeEach(() => {
+      Organization.findById = jest.fn();
+      Organization.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should soft-delete organization successfully', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const organization = mockOrganization({ 
+        _id: 'org123',
+        isActive: true
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(organization);
+      Organization.findByIdAndUpdate = jest.fn().mockResolvedValue({ ...organization, isActive: false });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .delete('/api/organizations/org123');
+
+      expect(response.status).toBe(200);
+      expect(Organization.findByIdAndUpdate).toHaveBeenCalledWith(
+        'org123',
+        { isActive: false },
+        { new: true }
+      );
+      expect(logEvent).toHaveBeenCalledWith(
+        superAdminProfile.supabaseUid,
+        'organization_deactivated',
+        'organization',
+        'org123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 404 for missing organization', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      Organization.findById = jest.fn().mockResolvedValue(null);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .delete('/api/organizations/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Organization not found');
+    });
+  });
+});

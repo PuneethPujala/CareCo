@@ -70,21 +70,38 @@ router.post('/register', async (req, res) => {
         if (!email || !fullName) {
             return res.status(400).json({ error: 'Missing required fields: email, fullName' });
         }
-        if (!city) {
-            return res.status(400).json({ error: 'city is required for patient registration' });
-        }
+        // city is optional at registration — will be collected at step 2
         if (!supabaseUid && !password) {
             return res.status(400).json({ error: 'Password is required when creating a new user' });
         }
 
-        // Resolve org from city if organizationId not provided
+        // Check for existing account BEFORE hitting Supabase — gives a clear error
+        const existingProfile = await Profile.findOne({ email: email.toLowerCase().trim(), isActive: true });
+        if (existingProfile) {
+            return res.status(400).json({
+                error: `An account with the email "${email}" already exists. Please log in instead.`,
+                code:  'EMAIL_ALREADY_EXISTS',
+            });
+        }
+
+        // Resolve org from city if provided and organizationId not provided
         let targetOrgId = organizationId;
-        if (!targetOrgId) {
+        if (city && !targetOrgId) {
             const org = await Organization.findOne({ city, isActive: true });
             if (!org) {
                 return res.status(400).json({ error: `No active organisation found for city: ${city}` });
             }
             targetOrgId = org._id;
+        }
+
+        // If no org resolved yet, use a default org or require it later
+        if (!targetOrgId) {
+            // Find first active org as placeholder — city will be updated at step 2
+            const defaultOrg = await Organization.findOne({ isActive: true });
+            if (!defaultOrg) {
+                return res.status(400).json({ error: 'No active organization available for registration' });
+            }
+            targetOrgId = defaultOrg._id;
         }
 
         // Verify org exists, is active, and has patient capacity
@@ -132,13 +149,13 @@ router.post('/register', async (req, res) => {
         });
         await profile.save();
 
-        // Create Patient (medical/care record)
+        // Create Patient (medical/care record) — city may be null if not provided
         const patient = new Patient({
             supabase_uid:    finalUid,
             profile_id:      profile._id,
             email,
             name:            fullName,
-            city,
+            city:            city || null,
             organization_id: targetOrgId,
         });
         await patient.save();
@@ -294,7 +311,7 @@ router.post('/login', async (req, res) => {
         });
 
     } catch (error) {
-        console.warn('Login error:', error?.message);
+        console.error('Login error:', error?.message);
         res.status(500).json({ error: 'Login failed', details: error.message });
     }
 });
@@ -659,6 +676,55 @@ router.post('/change-password', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Change password error:', error);
         res.status(500).json({ error: 'Failed to change password', details: error.message });
+    }
+});
+
+/**
+ * PUT /api/auth/patient-city
+ * Update patient city after registration (Step 2 of onboarding)
+ */
+router.put('/patient-city', authenticate, async (req, res) => {
+    try {
+        const { city } = req.body;
+        if (!city) {
+            return res.status(400).json({ error: 'City is required' });
+        }
+
+        // Find and update the patient record
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { city },
+            { new: true }
+        );
+
+        if (!patient) {
+            return res.status(404).json({ error: 'Patient record not found' });
+        }
+
+        // Also update organization if city changed
+        const org = await Organization.findOne({ city, isActive: true });
+        if (org && org._id.toString() !== patient.organization_id?.toString()) {
+            patient.organization_id = org._id;
+            await patient.save();
+            
+            // Update profile organization too
+            await Profile.findOneAndUpdate(
+                { supabaseUid: req.user.id },
+                { organizationId: org._id }
+            );
+        }
+
+        await logEvent(req.user.id, 'patient_city_updated', 'patient', patient._id, req, { city });
+
+        res.json({
+            message: 'City updated successfully',
+            city: patient.city,
+            organizationId: patient.organization_id,
+        });
+
+    } catch (error) {
+        console.error('Update patient city error:', error);
+        res.status(500).json({ error: 'Failed to update city', details: error.message });
     }
 });
 

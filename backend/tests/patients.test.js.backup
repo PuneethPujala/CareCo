@@ -1,0 +1,553 @@
+process.env.NODE_ENV = 'test';
+const request = require('supertest');
+const app = require('../src/server');
+
+// Mock Mongoose models
+jest.mock('../src/models/Patient');
+jest.mock('../src/models/Organization');
+
+// Mock services
+jest.mock('../src/services/auditService');
+
+const Patient = require('../src/models/Patient');
+const Organization = require('../src/models/Organization');
+const { logEvent, autoLogAccess } = require('../src/services/auditService');
+
+const { mockPatient, mockOrganization, mockProfile } = require('./helpers/mockModels');
+const { fakeAuthenticate } = require('./helpers/mockAuth');
+
+describe('Patients Routes', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('GET /api/patients', () => {
+    beforeEach(() => {
+      Patient.find = jest.fn();
+      Patient.countDocuments = jest.fn();
+    });
+
+    it('should return paginated list for care_manager', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123',
+        _id: 'cm123'
+      });
+      
+      const patients = [
+        mockPatient({ _id: 'patient1', organization_id: 'org123' }),
+        mockPatient({ _id: 'patient2', organization_id: 'org123' }),
+      ];
+      
+      Patient.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patients)
+      });
+      Patient.countDocuments = jest.fn().mockResolvedValue(2);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => {
+          req.scopeFilter = { organization_id: 'org123' };
+          next();
+        },
+      }));
+
+      const response = await request(app)
+        .get('/api/patients')
+        .query({ page: 1, limit: 20 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.patients).toHaveLength(2);
+      expect(response.body.pagination.total).toBe(2);
+      expect(autoLogAccess).toHaveBeenCalledWith('patients', 'read');
+    });
+
+    it('should return scoped list for caller', async () => {
+      const callerProfile = mockProfile({ 
+        role: 'caller',
+        organizationId: 'org123',
+        _id: 'caller123'
+      });
+      
+      const patients = [mockPatient({ 
+        _id: 'patient1', 
+        organization_id: 'org123',
+        assigned_caller_id: 'caller123'
+      })];
+      
+      Patient.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patients)
+      });
+      Patient.countDocuments = jest.fn().mockResolvedValue(1);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(callerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => {
+          req.scopeFilter = { assigned_caller_id: 'caller123' };
+          next();
+        },
+      }));
+
+      const response = await request(app)
+        .get('/api/patients');
+
+      expect(response.status).toBe(200);
+      expect(response.body.patients).toHaveLength(1);
+      expect(Patient.find).toHaveBeenCalledWith(
+        expect.objectContaining({ assigned_caller_id: 'caller123' })
+      );
+    });
+
+    it('should apply search filter', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      const patients = [mockPatient({ name: 'John Doe' })];
+      
+      Patient.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patients)
+      });
+      Patient.countDocuments = jest.fn().mockResolvedValue(1);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => {
+          req.scopeFilter = { organization_id: 'org123' };
+          next();
+        },
+      }));
+
+      const response = await request(app)
+        .get('/api/patients')
+        .query({ search: 'John' });
+
+      expect(response.status).toBe(200);
+      expect(Patient.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: [
+            { name: { $regex: 'John', $options: 'i' } },
+            { email: { $regex: 'John', $options: 'i' } },
+            { phone: { $regex: 'John', $options: 'i' } },
+            { city: { $regex: 'John', $options: 'i' } },
+          ]
+        })
+      );
+    });
+
+    it('should apply risk_level filter', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      Patient.find = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue([])
+      });
+      Patient.countDocuments = jest.fn().mockResolvedValue(0);
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => {
+          req.scopeFilter = { organization_id: 'org123' };
+          next();
+        },
+      }));
+
+      const response = await request(app)
+        .get('/api/patients')
+        .query({ risk_level: 'high' });
+
+      expect(response.status).toBe(200);
+      expect(Patient.find).toHaveBeenCalledWith(
+        expect.objectContaining({ risk_level: 'high' })
+      );
+    });
+  });
+
+  describe('GET /api/patients/:id', () => {
+    beforeEach(() => {
+      Patient.findById = jest.fn();
+    });
+
+    it('should allow super_admin to read any patient', async () => {
+      const superAdminProfile = mockProfile({ 
+        role: 'super_admin',
+        organizationId: 'super-org'
+      });
+      
+      const patient = mockPatient({ 
+        _id: 'patient123',
+        organization_id: 'different-org'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patient)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(superAdminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/patients/patient123');
+
+      expect(response.status).toBe(200);
+      expect(response.body._id).toBe('patient123');
+    });
+
+    it('should allow org_admin to read patients in own org', async () => {
+      const adminProfile = mockProfile({ 
+        role: 'org_admin',
+        organizationId: 'org123'
+      });
+      
+      const patient = mockPatient({ 
+        _id: 'patient123',
+        organization_id: 'org123'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patient)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(adminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/patients/patient123');
+
+      expect(response.status).toBe(200);
+      expect(response.body._id).toBe('patient123');
+    });
+
+    it('should allow caller to read assigned patients', async () => {
+      const callerProfile = mockProfile({ 
+        role: 'caller',
+        organizationId: 'org123',
+        _id: 'caller123'
+      });
+      
+      const patient = mockPatient({ 
+        _id: 'patient123',
+        organization_id: 'org123',
+        assigned_caller_id: 'caller123'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patient)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(callerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/patients/patient123');
+
+      expect(response.status).toBe(200);
+      expect(response.body._id).toBe('patient123');
+    });
+
+    it('should return 404 for missing patient', async () => {
+      const adminProfile = mockProfile({ 
+        role: 'org_admin',
+        organizationId: 'org123'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(null)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(adminProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .get('/api/patients/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Patient not found');
+    });
+  });
+
+  describe('PUT /api/patients/:id', () => {
+    beforeEach(() => {
+      Patient.findById = jest.fn();
+      Patient.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should update patient successfully', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      const patient = mockPatient({ 
+        _id: 'patient123',
+        organization_id: 'org123',
+        name: 'Old Name'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patient)
+      });
+      Patient.findByIdAndUpdate = jest.fn().mockResolvedValue({ ...patient, name: 'New Name' });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .put('/api/patients/patient123')
+        .send({ name: 'New Name', city: 'New City' });
+
+      expect(response.status).toBe(200);
+      expect(Patient.findByIdAndUpdate).toHaveBeenCalledWith(
+        'patient123',
+        { name: 'New Name', city: 'New City' },
+        { new: true, runValidators: true }
+      );
+      expect(logEvent).toHaveBeenCalledWith(
+        careManagerProfile.supabaseUid,
+        'patient_updated',
+        'patient',
+        'patient123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 404 for missing patient', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(null)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .put('/api/patients/nonexistent')
+        .send({ name: 'New Name' });
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Patient not found');
+    });
+  });
+
+  describe('DELETE /api/patients/:id', () => {
+    beforeEach(() => {
+      Patient.findById = jest.fn();
+      Patient.findByIdAndUpdate = jest.fn();
+    });
+
+    it('should soft-delete patient successfully', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      const patient = mockPatient({ 
+        _id: 'patient123',
+        organization_id: 'org123',
+        is_active: true
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(patient)
+      });
+      Patient.findByIdAndUpdate = jest.fn().mockResolvedValue({ ...patient, is_active: false });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .delete('/api/patients/patient123');
+
+      expect(response.status).toBe(200);
+      expect(Patient.findByIdAndUpdate).toHaveBeenCalledWith(
+        'patient123',
+        { is_active: false },
+        { new: true }
+      );
+      expect(logEvent).toHaveBeenCalledWith(
+        careManagerProfile.supabaseUid,
+        'patient_deactivated',
+        'patient',
+        'patient123',
+        expect.any(Object),
+        expect.any(Object)
+      );
+    });
+
+    it('should return 404 for missing patient', async () => {
+      const careManagerProfile = mockProfile({ 
+        role: 'care_manager',
+        organizationId: 'org123'
+      });
+      
+      Patient.findById = jest.fn().mockReturnValue({
+        populate: jest.fn().mockResolvedValue(null)
+      });
+
+      // Mock authenticate middleware
+      jest.doMock('../src/middleware/authenticate', () => ({
+        authenticate: fakeAuthenticate(careManagerProfile),
+        requireRole: () => (req, res, next) => next(),
+      }));
+      
+      // Mock authorize middleware
+      jest.doMock('../src/middleware/authorize', () => ({
+        authorize: () => (req, res, next) => next(),
+      }));
+
+      // Mock scopeFilter middleware
+      jest.doMock('../src/middleware/scopeFilter', () => ({
+        scopeFilter: () => (req, res, next) => next(),
+      }));
+
+      const response = await request(app)
+        .delete('/api/patients/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toContain('Patient not found');
+    });
+  });
+});

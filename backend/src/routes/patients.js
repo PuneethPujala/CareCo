@@ -360,4 +360,117 @@ router.delete('/:id',
     }
 );
 
+/**
+ * GET /api/patients/me/caller
+ * Get current assigned caller for logged-in patient
+ */
+router.get('/me/caller',
+    authenticate,
+    requireRole('patient'),
+    async (req, res) => {
+        try {
+            const patient = await Patient.findById(req.profile._id).populate('assigned_caller_id');
+            if (!patient) {
+                return res.status(404).json({ error: 'Patient not found' });
+            }
+
+            if (!patient.assigned_caller_id) {
+                return res.status(404).json({ error: 'No caller assigned' });
+            }
+
+            // Get caller user details
+            const User = require('../models/User');
+            const caller = await User.findById(patient.assigned_caller_id);
+            if (!caller) {
+                return res.status(404).json({ error: 'Caller not found' });
+            }
+
+            // Format caller data for frontend
+            const callerData = {
+                _id: caller._id,
+                name: caller.fullName || caller.name,
+                employee_id: caller.employee_id || 'N/A',
+                experience_years: caller.experience_years || 0,
+                languages_spoken: caller.languages_spoken || ['English'],
+                phone: caller.phone || '',
+                avatar_url: caller.avatar_url || null,
+            };
+
+            res.json({ caller: callerData });
+
+        } catch (error) {
+            console.error('Get my caller error:', error);
+            res.status(500).json({ error: 'Failed to get caller', details: error.message });
+        }
+    }
+);
+
+/**
+ * GET /api/patients/me/calls
+ * Get call history for logged-in patient
+ */
+router.get('/me/calls',
+    authenticate,
+    requireRole('patient'),
+    async (req, res) => {
+        try {
+            const Call = require('../models/Call');
+            const calls = await Call.find({ patient_id: req.profile._id })
+                .sort({ call_date: -1 })
+                .limit(20);
+
+            res.json({ calls: calls || [] });
+
+        } catch (error) {
+            console.error('Get my calls error:', error);
+            res.status(500).json({ error: 'Failed to get calls', details: error.message });
+        }
+    }
+);
+
+/**
+ * GET /api/patients/me/previous-callers
+ * Get list of previous callers for logged-in patient
+ */
+router.get('/me/previous-callers',
+    authenticate,
+    requireRole('patient'),
+    async (req, res) => {
+        try {
+            const Call = require('../models/Call');
+            const User = require('../models/User');
+
+            // Get all completed calls for this patient
+            const calls = await Call.find({
+                patient_id: req.profile._id,
+                status: { $in: ['completed', 'missed', 'attempted'] }
+            }).populate('caller_id');
+
+            // Group by caller and count calls
+            const callerStats = {};
+            calls.forEach(call => {
+                if (call.caller_id) {
+                    const callerId = call.caller_id._id.toString();
+                    if (!callerStats[callerId]) {
+                        callerStats[callerId] = {
+                            _id: call.caller_id._id,
+                            name: call.caller_id.fullName || call.caller_id.name,
+                            employee_id: call.caller_id.employee_id || 'N/A',
+                            total_calls: 0,
+                        };
+                    }
+                    callerStats[callerId].total_calls++;
+                }
+            });
+
+            const previousCallers = Object.values(callerStats);
+            res.json({ previous_callers: previousCallers });
+
+        } catch (error) {
+            console.error('Get previous callers error:', error);
+            res.status(500).json({ error: 'Failed to get previous callers', details: error.message });
+        }
+    }
+);
+
 module.exports = router;
