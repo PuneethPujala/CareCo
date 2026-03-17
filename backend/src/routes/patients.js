@@ -428,49 +428,6 @@ router.get('/me/calls',
     }
 );
 
-/**
- * GET /api/patients/me/previous-callers
- * Get list of previous callers for logged-in patient
- */
-router.get('/me/previous-callers',
-    authenticate,
-    requireRole('patient'),
-    async (req, res) => {
-        try {
-            const Call = require('../models/Call');
-            const User = require('../models/User');
 
-            // Get all completed calls for this patient
-            const calls = await Call.find({
-                patient_id: req.profile._id,
-                status: { $in: ['completed', 'missed', 'attempted'] }
-            }).populate('caller_id');
-
-            // Group by caller and count calls
-            const callerStats = {};
-            calls.forEach(call => {
-                if (call.caller_id) {
-                    const callerId = call.caller_id._id.toString();
-                    if (!callerStats[callerId]) {
-                        callerStats[callerId] = {
-                            _id: call.caller_id._id,
-                            name: call.caller_id.fullName || call.caller_id.name,
-                            employee_id: call.caller_id.employee_id || 'N/A',
-                            total_calls: 0,
-                        };
-                    }
-                    callerStats[callerId].total_calls++;
-                }
-            });
-
-            const previousCallers = Object.values(callerStats);
-            res.json({ previous_callers: previousCallers });
-
-        } catch (error) {
-            console.error('Get previous callers error:', error);
-            res.status(500).json({ error: 'Failed to get previous callers', details: error.message });
-        }
-    }
-);
 
 module.exports = router;
