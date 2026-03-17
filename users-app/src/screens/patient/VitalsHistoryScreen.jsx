@@ -12,7 +12,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
     ChevronLeft, ChevronRight, Heart, Activity, Wind, Droplets, 
     AlertTriangle, WifiOff, RefreshCw, Calendar, Clock, Sparkles, 
-    Maximize2, X, MoreHorizontal, ArrowDown 
+    Maximize2, X
 } from 'lucide-react-native';
 import Svg, { Line, Path, Circle } from 'react-native-svg';
 import axiosInstance, { handleAxiosError } from '../../lib/axiosInstance';
@@ -678,10 +678,6 @@ export default function VitalsHistoryScreen({ navigation }) {
                         <Text style={styles.emptyChartText}>No records for this period</Text>
                     </View>
                 )}
-
-                <View style={styles.bottomArrow}>
-                    <ArrowDown size={20} color="#1E293B" />
-                </View>
             </Animated.View>
         );
     };
@@ -705,9 +701,7 @@ export default function VitalsHistoryScreen({ navigation }) {
                         <ChevronLeft size={24} color="#1E293B" />
                     </Pressable>
                     <Text style={styles.headerTitle}>Vitals History</Text>
-                    <Pressable style={styles.headerActionBtn}>
-                        <MoreHorizontal size={24} color="#1E293B" />
-                    </Pressable>
+                    <View style={{ width: 44 }} />
                 </View>
             </Animated.View>
         );
@@ -817,8 +811,6 @@ export default function VitalsHistoryScreen({ navigation }) {
 
                     {loading ? renderSkeleton() : (
                         <>
-                            {renderIntelligenceCard(def)}
-                            
                             {/* ── Log Vitals Form (top for easy access) ── */}
                             <Animated.View style={[styles.chartCard, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
                                 <Pressable
@@ -996,6 +988,8 @@ export default function VitalsHistoryScreen({ navigation }) {
                             {/* ── Charts ───────────────────────────────── */}
                             {!loading && vitals.length > 0 && renderChartCard(def)}
 
+                            {renderIntelligenceCard(def)}
+
                             {/* ── History List ─────────────────────────── */}
                             <Animated.View style={[styles.historySection, { opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }]}>
                                 
@@ -1138,30 +1132,31 @@ const styles = StyleSheet.create({
     dateSection: {
         backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, marginBottom: 20,
         borderWidth: 1, borderColor: '#F1F5F9',
-        shadowColor: 'rgba(10, 36, 99, 0.08)', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 1, shadowRadius: 16, elevation: 4,
+        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8,
     },
-    dateToggle: { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 16, padding: 6, marginBottom: 20, borderWidth: 1, borderColor: '#F1F5F9' },
-    toggleBtn: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    toggleBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2 },
-    dateToggleIcon: { opacity: 0.5 },
+    dateToggle: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 18, padding: 5, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
+    toggleBtn: { flex: 1, flexDirection: 'row', gap: 8, paddingVertical: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    toggleBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3 },
+    dateToggleIcon: { opacity: 0.4 },
     dateToggleIconActive: { opacity: 1 },
-    toggleTxt: { fontSize: 13, fontWeight: '700', color: '#94A3B8' },
-    toggleTxtActive: { color: '#1E293B', fontWeight: '800' },
+    toggleTxt: { fontSize: 13, fontWeight: '700', color: '#64748B' },
+    toggleTxtActive: { color: '#1E293B', fontWeight: '900' },
 
     dateRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
     dateArrow: {
-        width: 44, height: 44, borderRadius: 14,
-        backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center',
+        width: 48, height: 48, borderRadius: 16,
+        backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center',
         borderWidth: 1, borderColor: '#F1F5F9',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
     },
     dateBox: {
-        flex: 1, marginHorizontal: 12, backgroundColor: '#FFFFFF',
-        borderRadius: 14, paddingVertical: 12, paddingHorizontal: 16,
-        borderWidth: 1.5, borderColor: '#F1F5F9',
+        flex: 1, marginHorizontal: 16, backgroundColor: '#F9FAFB',
+        borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16,
+        borderWidth: 1, borderColor: '#E2E8F0',
         alignItems: 'center',
     },
-    dateLabel: { fontSize: 10, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
-    dateValue: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
+    dateLabel: { fontSize: 10, fontWeight: '900', color: '#94A3B8', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 1 },
+    dateValue: { fontSize: 16, fontWeight: '900', color: '#1E293B', letterSpacing: -0.3 },
 
     /* Error Banner */
     errorBanner: {
@@ -1194,7 +1189,7 @@ const styles = StyleSheet.create({
     chartCard: {
         backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, marginBottom: 24,
         borderWidth: 1, borderColor: '#F1F5F9',
-        shadowColor: 'rgba(0, 0, 0, 0.04)', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 1, shadowRadius: 16, elevation: 4,
+        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 6,
     },
     chartTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
     chartIconPill: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -1222,8 +1217,7 @@ const styles = StyleSheet.create({
     statsScroll: { paddingHorizontal: 4, paddingBottom: 12 },
     statCard: {
         width: 155, backgroundColor: '#F9FAFB', borderRadius: 16, padding: 16, marginRight: 12,
-        borderWidth: 0, 
-    },
+        borderWidth: 0,    },
     statLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginBottom: 10 },
     statValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 4 },
     statValue: { fontSize: 32, fontWeight: '900', color: '#1E293B', letterSpacing: -1 },
@@ -1233,9 +1227,9 @@ const styles = StyleSheet.create({
 
     /* Log Form */
     logToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    addBadge: { backgroundColor: 'rgba(59,134,255,0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-    addBadgeTxt: { color: '#3B86FF', fontSize: 13, fontWeight: '800' },
-    addBadgeCancel: { backgroundColor: 'rgba(239,68,68,0.1)' },
+    addBadge: { backgroundColor: '#F0F7FF', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: '#DBEAFE' },
+    addBadgeTxt: { color: '#3B86FF', fontSize: 14, fontWeight: '900' },
+    addBadgeCancel: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
     addBadgeCancelTxt: { color: '#EF4444' },
 
     formArea: { marginTop: 24 },
@@ -1310,13 +1304,6 @@ const styles = StyleSheet.create({
     quickRangeRow: { flexDirection: 'row', gap: 8, marginTop: 16, justifyContent: 'flex-end' },
     quickRangeBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 24, backgroundColor: '#F8F9FA', borderWidth: 1, borderColor: '#E9ECEF' },
     quickRangeText: { fontSize: 13, fontWeight: '800', color: '#495057' },
-
-    bottomArrow: {
-        width: 44, height: 44, borderRadius: 22, backgroundColor: '#F8FAFC',
-        borderWidth: 1, borderColor: '#F1F5F9',
-        alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
-        marginTop: -10, marginBottom: 10,
-    },
     /* Tooltip */
     tooltipContainer: {
         position: 'absolute', width: 100, backgroundColor: '#1E293B',
