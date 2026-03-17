@@ -36,6 +36,8 @@ import {
 import { colors } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../lib/api';
+import { parseError } from '../../utils/parseError';
+import analytics from '../../utils/analytics';
 import * as Google from 'expo-auth-session/providers/google';
 import * as Location from 'expo-location';
 import * as WebBrowser from 'expo-web-browser';
@@ -103,7 +105,7 @@ const StepIndicator = ({ current }) => (
     </View>
 );
 
-const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBlur, ...rest }) => (
+const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBlur, textPrefix, ...rest }) => (
     <View style={styles.fieldGroup}>
         {typeof label === 'string' ? (
             <Text style={[styles.label, focused && { color: '#3A86FF' }]}>{label}</Text>
@@ -116,6 +118,7 @@ const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBl
             <View style={[styles.inlineIconBox, focused && { backgroundColor: '#EFF6FF' }]}>
                 <Icon size={18} color={focused ? '#3A86FF' : '#94A3B8'} />
             </View>
+            {textPrefix && <Text style={styles.textPrefixStyle}>{textPrefix}</Text>}
             <TextInput
                 style={styles.textInputEnhanced}
                 placeholderTextColor="#94A3B8"
@@ -134,13 +137,13 @@ const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBl
     </View>
 );
 
-const OTPModal = ({ visible, onClose, otp, setOtp, onVerify, timer, resend, attempts, field, error }) => (
+const OTPModal = ({ visible, onClose, otp, setOtp, onVerify, timer, resend, attempts, field, error, otpLoading }) => (
     <Modal visible={visible} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
             <View style={styles.modalSheet}>
                 <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Verify {field === 'email' ? 'Email' : 'Phone'}</Text>
-                    <Pressable onPress={onClose} hitSlop={12}><X size={22} color="#64748B" /></Pressable>
+                    <Pressable onPress={onClose} hitSlop={12} disabled={otpLoading}><X size={22} color="#64748B" /></Pressable>
                 </View>
                 <Text style={styles.otpSubtext}>Enter the 6-digit code sent to your {field}.</Text>
                 <View style={[styles.fieldGroup, { marginTop: 20 }]}>
@@ -154,6 +157,7 @@ const OTPModal = ({ visible, onClose, otp, setOtp, onVerify, timer, resend, atte
                             keyboardType="number-pad"
                             value={otp}
                             onChangeText={setOtp}
+                            editable={!otpLoading}
                         />
                     </View>
                     {error ? (
@@ -167,13 +171,20 @@ const OTPModal = ({ visible, onClose, otp, setOtp, onVerify, timer, resend, atte
                     {timer > 0 ? (
                         <Text style={styles.timerText}>Resend in {timer}s</Text>
                     ) : (
-                        <Pressable onPress={resend}>
-                            <Text style={styles.resendAction}>Resend Code</Text>
+                        <Pressable onPress={resend} disabled={otpLoading}>
+                            <Text style={[styles.resendAction, otpLoading && { opacity: 0.5 }]}>Resend Code</Text>
                         </Pressable>
                     )}
                 </View>
-                <Pressable style={styles.primaryBtnEnhanced} onPress={onVerify}>
-                    <Text style={styles.primaryBtnText}>Verify OTP</Text>
+                <Pressable style={[styles.primaryBtnEnhanced, otpLoading && { opacity: 0.7 }]} onPress={onVerify} disabled={otpLoading}>
+                    {otpLoading ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                            <Text style={styles.primaryBtnText}>  Verifying...</Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.primaryBtnText}>Verify OTP</Text>
+                    )}
                 </Pressable>
                 {attempts > 0 && (
                     <Text style={styles.attemptsText}>{3 - attempts} attempts remaining</Text>
@@ -217,7 +228,7 @@ const UPIPaymentModal = ({ visible, onClose, onSuccess, planName, planPrice }) =
 
 export default function PatientSignupScreen({ navigation, route }) {
     // FIX 4: destructure signOut at the top — never call useAuth() inside a callback
-    const { user, signUp, signInWithGoogle, completeSignUp, injectSession, signOut } = useAuth();
+    const { user, signUp, signInWithGoogle, completeSignUp, injectSession, signOut, sendOtp, verifyOtp } = useAuth();
 
     const [step, setStep] = useState(route?.params?.step || 1);
     const [form, setForm] = useState({
@@ -230,6 +241,7 @@ export default function PatientSignupScreen({ navigation, route }) {
     const [otp, setOtp] = useState('');
     const [otpAttempts, setOtpAttempts] = useState(0);
     const [resendTimer, setResendTimer] = useState(0);
+    const [otpLoading, setOtpLoading] = useState(false);
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [isPhoneVerified, setIsPhoneVerified] = useState(false);
 
@@ -475,43 +487,90 @@ export default function PatientSignupScreen({ navigation, route }) {
 
     // ── OTP ────────────────────────────────────────────────────────────────────
 
-    const handleVerifyPress = (field) => {
+    const handleVerifyPress = async (field) => {
         const e = {};
+        const value = field === 'email' ? form.email.trim().toLowerCase() : form.phoneNumber.trim();
         if (field === 'email') {
-            if (!form.email.trim())                     e.email = 'Email not entered';
-            else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email address';
+            if (!value) e.email = 'Email not entered';
+            else if (!/\S+@\S+\.\S+/.test(value)) e.email = 'Enter a valid email address';
         } else {
-            if (!form.phoneNumber.trim())                   e.phoneNumber = 'Phone number not entered';
-            else if (!/^\d{10}$/.test(form.phoneNumber))    e.phoneNumber = 'Enter a valid 10-digit number';
+            if (!value) e.phoneNumber = 'Phone number not entered';
+            else if (!/^\d{10}$/.test(value)) e.phoneNumber = 'Enter a valid 10-digit number';
         }
         if (Object.keys(e).length > 0) { setErrors(prev => ({ ...prev, ...e })); return; }
+        
         setVerificationField(field);
-        setOtpVisible(true);
-        setResendTimer(60);
-        setOtpAttempts(0);
-        setOtp('');
+        setOtpLoading(true);
+        try {
+            // Note: Make sure from useAuth() we destructured sendOtp and verifyOtp
+            const finalValue = field === 'phone' ? `+91${value}` : value;
+            await sendOtp(field, finalValue);
+            setOtpVisible(true);
+            setResendTimer(60);
+            setOtpAttempts(0);
+            setOtp('');
+        } catch (error) {
+            const { general } = parseError(error);
+            const errorField = field === 'phone' ? 'phoneNumber' : field;
+            setErrors(prev => ({ ...prev, [errorField]: general || `Failed to send OTP to ${field}` }));
+        } finally {
+            setOtpLoading(false);
+        }
     };
 
-    const handleVerifyOtp = () => {
-        if (otp === '123456') {
+    const handleVerifyOtp = async () => {
+        if (!otp || otp.length < 6) {
+            setErrors(prev => ({ ...prev, otp: 'Please enter a 6-digit code' }));
+            return;
+        }
+
+        const value = verificationField === 'email' ? form.email.trim().toLowerCase() : `+91${form.phoneNumber.trim()}`;
+        setOtpLoading(true);
+        setErrors(prev => ({ ...prev, otp: '' }));
+
+        try {
+            await verifyOtp(verificationField, value, otp);
             if (verificationField === 'email') setIsEmailVerified(true);
             else setIsPhoneVerified(true);
             setOtpVisible(false);
             setOtp('');
-        } else {
+            analytics.track('otp_verification_success', { field: verificationField });
+        } catch (error) {
             const newAttempts = otpAttempts + 1;
             setOtpAttempts(newAttempts);
+            analytics.track('otp_verification_failure', { field: verificationField, attempt: newAttempts });
+            
             if (newAttempts >= 3) {
                 setOtpVisible(false);
-                setErrors(prev => ({ ...prev, [verificationField]: `Too many attempts. Check your ${verificationField} or try again later.` }));
+                const errorField = verificationField === 'phone' ? 'phoneNumber' : verificationField;
+                setErrors(prev => ({ ...prev, [errorField]: `Too many attempts. Check your ${verificationField} or try again later.` }));
             } else {
-                setErrors(prev => ({ ...prev, otp: 'OTP not correct' }));
+                const { general } = parseError(error);
+                setErrors(prev => ({ ...prev, otp: general || 'OTP not correct' }));
             }
+        } finally {
+            setOtpLoading(false);
         }
     };
 
-    const handleResendOtp = () => {
-        if (resendTimer === 0) { setResendTimer(60); setOtp(''); setOtpAttempts(0); }
+    const handleResendOtp = async () => {
+        if (resendTimer > 0) return;
+        const value = verificationField === 'email' ? form.email.trim().toLowerCase() : `+91${form.phoneNumber.trim()}`;
+        setOtpLoading(true);
+        try {
+            await sendOtp(verificationField, value);
+            setResendTimer(60);
+            setOtp('');
+            setOtpAttempts(0);
+            const errorField = verificationField === 'phone' ? 'phoneNumber' : verificationField;
+            setErrors(prev => ({ ...prev, [errorField]: '', otp: '' }));
+            analytics.track('otp_resend', { field: verificationField });
+        } catch (error) {
+            const { general } = parseError(error);
+            setErrors(prev => ({ ...prev, otp: general || 'Failed to resend code' }));
+        } finally {
+            setOtpLoading(false);
+        }
     };
 
     // ── Location ───────────────────────────────────────────────────────────────
@@ -571,20 +630,18 @@ export default function PatientSignupScreen({ navigation, route }) {
 
         setSignupLoading(true);
         try {
-            await signUp(form.email, form.password, form.fullName, 'patient', { phoneNumber: form.phoneNumber });
+            const cleanEmail = form.email.trim().toLowerCase();
+            await signUp(cleanEmail, form.password, form.fullName.trim(), 'patient', { phoneNumber: form.phoneNumber });
+            analytics.signupSuccess(cleanEmail);
             await saveProgress(2);
             setStep(2);
         } catch (error) {
-            const code   = error?.response?.data?.code || (error?.message?.includes('EMAIL_ALREADY_EXISTS') ? 'EMAIL_ALREADY_EXISTS' : null);
-            const errMsg = error?.response?.data?.error || error?.message || 'Signup failed';
-            if (code === 'EMAIL_ALREADY_EXISTS' || errMsg.toLowerCase().includes('already exists')) {
-                setErrors({
-                    general: 'An account with this email already exists. Please log in instead.',
-                    email:   'Email already registered',
-                });
-            } else {
-                setErrors({ general: errMsg });
-            }
+            const { general, fields } = parseError(error);
+            setErrors({
+                general,
+                ...(fields.email ? { email: fields.email } : {}),
+            });
+            analytics.signupFailure(error?.response?.data?.code || 'signup_error');
         } finally {
             setSignupLoading(false);
             isSubmittingRef.current = false;
@@ -701,6 +758,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                             placeholder="Enter your email"
                             value={form.email} onChangeText={v => updateField('email', v)}
                             autoCapitalize="none" keyboardType="email-address"
+                            autoCorrect={false} spellCheck={false} textContentType="emailAddress"
                             focused={focusField === 'email'} onFocus={() => setFocusField('email')} onBlur={() => setFocusField('')}
                             error={errors.email} />
                     </View>
@@ -721,7 +779,8 @@ export default function PatientSignupScreen({ navigation, route }) {
                             value={form.phoneNumber} onChangeText={v => updateField('phoneNumber', v)}
                             keyboardType="phone-pad" maxLength={10}
                             focused={focusField === 'phoneNumber'} onFocus={() => setFocusField('phoneNumber')} onBlur={() => setFocusField('')}
-                            error={errors.phoneNumber} />
+                            error={errors.phoneNumber}
+                            textPrefix="+91 " />
                     </View>
                     <Pressable style={[styles.verifyBtnSmall, isPhoneVerified && styles.verifiedBtn, errors.phoneNumber && { marginTop: -12 }]}
                         onPress={() => !isPhoneVerified && handleVerifyPress('phone')} disabled={isPhoneVerified}>
@@ -1127,6 +1186,7 @@ const styles = StyleSheet.create({
     inputFocusedEnhanced: { borderColor: '#3A86FF', backgroundColor: '#FFFFFF', shadowColor: 'rgba(58,134,255,0.1)', shadowRadius: 8, elevation: 3 },
     inputErrorEnhanced: { borderColor: '#EF4444', backgroundColor: '#FFF1F2' },
     inlineIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    textPrefixStyle: { fontSize: 16, color: '#1E293B', fontWeight: '600', marginRight: 4 },
     textInputEnhanced: { flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '500' },
     fieldErrorEnhanced: { fontSize: 12, color: '#EF4444', fontWeight: '500' },
     rightIconWrap: { marginLeft: 10 },

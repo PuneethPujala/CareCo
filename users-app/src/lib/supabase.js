@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -9,9 +10,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables. Check your .env file.');
 }
 
+// §1 FIX: ExpoSecureStoreAdapter replaces AsyncStorage for token security
+const ExpoSecureStoreAdapter = {
+    getItem: (key) => {
+        return SecureStore.getItemAsync(key);
+    },
+    setItem: (key, value) => {
+        return SecureStore.setItemAsync(key, value);
+    },
+    removeItem: (key) => {
+        return SecureStore.deleteItemAsync(key);
+    },
+};
+
+// Use AsyncStorage on web, SecureStore on native
+const storageAdapter = Platform.OS === 'web' ? AsyncStorage : ExpoSecureStoreAdapter;
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-        storage: AsyncStorage,
+        storage: storageAdapter,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
@@ -54,8 +71,10 @@ export const auth = {
         return session;
     },
 
-    resetPassword: async (email) => {
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+    resetPassword: async (email, redirectTo) => {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: redirectTo || undefined,
+        });
         if (error) throw error;
     },
 
@@ -70,7 +89,6 @@ export const auth = {
 };
 
 export const handleAuthError = (error) => {
-    console.warn('Auth error:', error?.message);
     const messages = {
         'Invalid login credentials': 'Invalid email or password',
         'Email not confirmed': 'Please verify your email address',

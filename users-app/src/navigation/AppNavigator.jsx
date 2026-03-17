@@ -10,6 +10,8 @@ import { colors } from '../theme';
 import SplashScreen from '../screens/onboarding/SplashScreen';
 import PatientSignupScreen from '../screens/onboarding/PatientSignupScreen';
 import LoginScreen from '../screens/onboarding/LoginScreen';
+import ResetPasswordScreen from '../screens/onboarding/ResetPasswordScreen';
+import VerifyEmailScreen from '../screens/onboarding/VerifyEmailScreen';
 
 // Patient screens
 import PatientHomeScreen from '../screens/patient/HomeScreen';
@@ -21,6 +23,7 @@ import PatientProfileScreen from '../screens/patient/ProfileScreen';
 import SubscribePlansScreen from '../screens/patient/SubscribePlansScreen';
 import PaymentScreen from '../screens/patient/PaymentScreen';
 import WaitingScreen from '../screens/patient/WaitingScreen';
+import VitalsHistoryScreen from '../screens/patient/VitalsHistoryScreen';
 
 // Caller screens
 import CallerHomeScreen from '../screens/caller/HomeScreen';
@@ -129,6 +132,8 @@ const AuthStack = () => (
     >
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PatientSignup" component={PatientSignupScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
     </Stack.Navigator>
 );
 
@@ -149,6 +154,7 @@ const MainAppStack = ({ isCaller }) => (
             <>
                 <Stack.Screen name="PatientTabs" component={PatientTabNavigator} />
                 <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ presentation: 'modal' }} />
+                <Stack.Screen name="VitalsHistory" component={VitalsHistoryScreen} />
                 <Stack.Screen name="SubscribePlans" component={SubscribePlansScreen} />
                 <Stack.Screen name="Payment" component={PaymentScreen} />
                 <Stack.Screen name="WaitingRoom" component={WaitingScreen} />

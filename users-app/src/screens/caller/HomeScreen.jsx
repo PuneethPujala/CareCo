@@ -1,19 +1,48 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, Pressable, Platform, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Phone, CheckCircle2, ChevronRight, Activity } from 'lucide-react-native';
+import { Phone, CheckCircle2, ChevronRight, Activity, AlertCircle } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
+import { apiService } from '../../lib/api';
 import { colors } from '../../theme';
-
-const PATIENTS = [
-    { id: '1', name: 'Alok Gupta', age: 68, condition: 'Type 2 Diabetes', status: 'Pending', statusColor: '#94A3B8', lastCalled: 'Yesterday' },
-    { id: '2', name: 'Sarita Sharma', age: 72, condition: 'Hypertension', status: 'Called', statusColor: colors.success, lastCalled: 'Today' },
-    { id: '3', name: 'Rajesh Kumar', age: 65, condition: 'Post-Surgery', status: 'Missed', statusColor: colors.warning, lastCalled: '2 days ago' },
-    { id: '4', name: 'Meena Devi', age: 75, condition: 'Osteoarthritis', status: 'Escalated', statusColor: colors.danger, lastCalled: '4 days ago' },
-];
 
 export default function CallerHomeScreen({ navigation }) {
     const { displayName } = useAuth();
+    const [patients, setPatients] = useState([]);
+    const [summary, setSummary] = useState({ total: 0, called: 0, pending: 0 });
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        fetchTodayPatients();
+    }, []);
+
+    const fetchTodayPatients = async () => {
+        try {
+            setLoading(true);
+            setError('');
+            const res = await apiService.callers.getTodayPatients();
+            setPatients(res.data.patients || []);
+            setSummary(res.data.summary || { total: 0, called: 0, pending: 0 });
+        } catch (err) {
+            console.warn('Failed to fetch today patients:', err.message);
+            setError('Failed to load patient list');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'completed': return colors.success;
+            case 'attempted': return colors.warning;
+            case 'missed': return colors.danger;
+            case 'refused': return colors.danger;
+            case 'escalated': return '#9333EA';
+            case 'pending':
+            default: return '#94A3B8';
+        }
+    };
 
     return (
         <View style={styles.container}>
@@ -26,56 +55,88 @@ export default function CallerHomeScreen({ navigation }) {
                     <View style={styles.radialGlow} />
 
                     <Text style={styles.greeting}>Caller Desk: {displayName}</Text>
-                    <Text style={styles.dateLabel}>Today's Patients — Oct 24, 2023</Text>
+                    <Text style={styles.dateLabel}>
+                        Today's Patients — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
 
                     <View style={styles.progressContainer}>
                         <View style={styles.progressTextRow}>
-                            <Text style={styles.progressTxt}>12 / 30 Called</Text>
-                            <Text style={styles.progressPct}>40%</Text>
+                            <Text style={styles.progressTxt}>{summary.called} / {summary.total} Called</Text>
+                            <Text style={styles.progressPct}>
+                                {summary.total > 0 ? Math.round((summary.called / summary.total) * 100) : 0}%
+                            </Text>
                         </View>
                         <View style={styles.progressBarBg}>
-                            <View style={[styles.progressBarFill, { width: '40%' }]} />
+                            <View 
+                                style={[
+                                    styles.progressBarFill, 
+                                    { width: `${summary.total > 0 ? (summary.called / summary.total) * 100 : 0}%` }
+                                ]} 
+                            />
                         </View>
                     </View>
                 </LinearGradient>
             </View>
 
+            {loading ? (
+                <View style={[styles.listContent, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+                    <ActivityIndicator size="large" color={colors.accent} />
+                </View>
+            ) : error ? (
+                <View style={[styles.listContent, { flex: 1, justifyContent: 'center', alignItems: 'center' }]}>
+                    <AlertCircle size={32} color={colors.danger} style={{ marginBottom: 12 }} />
+                    <Text style={{ color: colors.danger, fontWeight: '600' }}>{error}</Text>
+                    <Pressable onPress={fetchTodayPatients} style={{ marginTop: 12 }}><Text style={{ color: colors.accent, fontWeight: '700' }}>Retry</Text></Pressable>
+                </View>
+            ) : (
+
             <FlatList
-                data={PATIENTS}
-                keyExtractor={item => item.id}
+                data={patients}
+                keyExtractor={item => item.id || item._id}
                 contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                    <Pressable style={styles.card}>
-                        <View style={[styles.cardAccent, { backgroundColor: item.statusColor }]} />
+                ListEmptyComponent={
+                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 }}>
+                       <CheckCircle2 size={48} color={colors.success} style={{ marginBottom: 16, opacity: 0.5 }} />
+                       <Text style={{ fontSize: 16, color: '#64748B', fontWeight: '600' }}>No patients assigned for today.</Text>
+                   </View>
+                }
+                renderItem={({ item }) => {
+                    const statusColor = getStatusColor(item.call_status);
+                    const primaryCondition = item.conditions?.[0]?.name || 'Routine Care';
+                    return (
+                        <Pressable style={styles.card}>
+                            <View style={[styles.cardAccent, { backgroundColor: statusColor }]} />
 
-                        <View style={styles.cardHeader}>
-                            <View>
-                                <Text style={styles.patientName}>{item.name}</Text>
-                                <Text style={styles.patientMeta}>{item.age} yrs • {item.condition}</Text>
+                            <View style={styles.cardHeader}>
+                                <View>
+                                    <Text style={styles.patientName}>{item.name}</Text>
+                                    <Text style={styles.patientMeta}>{item.age || '--'} yrs • {primaryCondition}</Text>
+                                </View>
+                                <View style={[styles.statusChip, { backgroundColor: statusColor + '15', borderColor: statusColor }]}>
+                                    <Text style={[styles.statusTxt, { color: statusColor }]}>{item.call_status}</Text>
+                                </View>
                             </View>
-                            <View style={[styles.statusChip, { backgroundColor: item.statusColor + '15', borderColor: item.statusColor }]}>
-                                <Text style={[styles.statusTxt, { color: item.statusColor }]}>{item.status}</Text>
-                            </View>
-                        </View>
 
-                        <View style={styles.cardActions}>
-                            <Pressable style={styles.actionBtnPrimary}>
-                                <Phone size={14} color="#FFF" />
-                                <Text style={styles.actionBtnPrimaryTxt}>Log Call</Text>
-                            </Pressable>
-
-                            <View style={{ flexDirection: 'row', gap: 8 }}>
-                                <Pressable style={styles.actionBtnOutlined}>
-                                    <Text style={styles.actionBtnTxt}>No Answer</Text>
+                            <View style={styles.cardActions}>
+                                <Pressable style={styles.actionBtnPrimary}>
+                                    <Phone size={14} color="#FFF" />
+                                    <Text style={styles.actionBtnPrimaryTxt}>Log Call</Text>
                                 </Pressable>
-                                <Pressable style={styles.actionBtnDanger}>
-                                    <Text style={styles.actionBtnDangerTxt}>Refused</Text>
-                                </Pressable>
+
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    <Pressable style={styles.actionBtnOutlined}>
+                                        <Text style={styles.actionBtnTxt}>No Answer</Text>
+                                    </Pressable>
+                                    <Pressable style={styles.actionBtnDanger}>
+                                        <Text style={styles.actionBtnDangerTxt}>Refused</Text>
+                                    </Pressable>
+                                </View>
                             </View>
-                        </View>
-                    </Pressable>
-                )}
+                        </Pressable>
+                    );
+                }}
             />
+            )}
         </View>
     );
 }

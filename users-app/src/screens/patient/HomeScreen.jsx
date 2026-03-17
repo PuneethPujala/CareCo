@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, TextInput, KeyboardAvoidingView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Pill, PhoneCall, CalendarCheck, Sunrise, Sun, Moon,
     Sparkles, ChevronRight, PhoneIncoming, TrendingUp, Activity, CalendarDays, CheckCircle2, Circle, Bell,
-    Heart, Wind, Thermometer, Droplets, MapPin
+    Heart, Wind, Thermometer, Droplets, MapPin, AlertTriangle
 } from 'lucide-react-native';
+import { handleAxiosError } from '../../lib/axiosInstance';
 import { colors } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 import { apiService } from '../../lib/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 const ACCENT_MAP = { morning: colors.success, afternoon: colors.warning, night: '#8B5CF6' };
 const TIME_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
@@ -27,35 +29,48 @@ const TimeBadge = ({ type, timeStr }) => {
     );
 };
 
-const VitalsCard = ({ label, value, unit, icon: Icon, color, bg, status = 'Stable' }) => (
-    <LinearGradient
-        colors={['#FFFFFF', '#F8FAFC']}
-        style={styles.vitalsCardPremium}
-    >
-        <View style={styles.vitalsRowTop}>
-            <View style={[styles.vitalsIconBoxPremium, { backgroundColor: color + '15' }]}>
-                <Icon size={20} color={color} strokeWidth={2.5} />
+const VitalsCard = ({ label, value, unit, icon: Icon, color, status = 'Stable' }) => {
+    const isLogged = status === 'Recorded';
+    return (
+        <LinearGradient
+            colors={isLogged ? ['#FFFFFF', '#F8FAFC'] : ['#FAFBFC', '#F1F5F9']}
+            style={[
+                styles.vitalsCardPremium,
+                !isLogged && { borderStyle: 'dashed', borderColor: '#CBD5E1', opacity: 0.85 },
+            ]}
+        >
+            <View style={styles.vitalsRowTop}>
+                <View style={[styles.vitalsIconBoxPremium, { backgroundColor: color + (isLogged ? '15' : '08') }]}>
+                    <Icon size={20} color={isLogged ? color : '#94A3B8'} strokeWidth={2.5} />
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: isLogged ? color + '10' : '#F1F5F9' }]}>
+                    <View style={[styles.statusDot, { backgroundColor: isLogged ? color : '#CBD5E1' }]} />
+                    <Text style={[styles.statusText, { color: isLogged ? color : '#94A3B8' }]}>{status}</Text>
+                </View>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: color + '10' }]}>
-                <View style={[styles.statusDot, { backgroundColor: color }]} />
-                <Text style={[styles.statusText, { color }]}>{status}</Text>
-            </View>
-        </View>
 
-        <View style={styles.vitalsMainInfo}>
-            <Text style={styles.vitalsLabelPremium}>{label}</Text>
-            <View style={styles.vitalsValueRow}>
-                <Text style={styles.vitalsValuePremium}>{value}</Text>
-                <Text style={styles.vitalsUnitPremium}>{unit}</Text>
+            <View style={styles.vitalsMainInfo}>
+                <Text style={styles.vitalsLabelPremium}>{label}</Text>
+                <View style={styles.vitalsValueRow}>
+                    <Text style={[styles.vitalsValuePremium, !isLogged && { color: '#CBD5E1' }]}>{value}</Text>
+                    <Text style={styles.vitalsUnitPremium}>{unit}</Text>
+                </View>
             </View>
-        </View>
 
-        <View style={styles.trendContainer}>
-            <TrendingUp size={14} color="#22C55E" />
-            <Text style={styles.trendText}>2% from yesterday</Text>
-        </View>
-    </LinearGradient>
-);
+            {isLogged ? (
+                <View style={styles.trendContainer}>
+                    <TrendingUp size={14} color="#22C55E" />
+                    <Text style={styles.trendText}>Logged today</Text>
+                </View>
+            ) : (
+                <View style={styles.trendContainer}>
+                    <Activity size={14} color="#94A3B8" />
+                    <Text style={[styles.trendText, { color: '#94A3B8' }]}>Tap History to log</Text>
+                </View>
+            )}
+        </LinearGradient>
+    );
+};
 
 const MedicationCard = ({ med, onCheck }) => {
     const [scale] = useState(new Animated.Value(1));
@@ -94,7 +109,16 @@ export default function PatientHomeScreen({ navigation }) {
     const { displayName, profile } = useAuth();
     const [patient, setPatient] = useState(null);
     const [meds, setMeds] = useState([]);
+    const [vitals, setVitals] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Log vitals form state
+    const [isLogging, setIsLogging] = useState(false);
+    const [formValues, setFormValues] = useState({
+        heart_rate: '', systolic: '', diastolic: '', oxygen_saturation: '', hydration: '',
+    });
+    const [formError, setFormError] = useState(null);
+    const [submitLoading, setSubmitLoading] = useState(false);
 
     const staggerAnims = useRef([...Array(10)].map(() => new Animated.Value(0))).current;
 
@@ -115,6 +139,22 @@ export default function PatientHomeScreen({ navigation }) {
             const pData = pRes.data.patient;
             setPatient(pData);
 
+            // Fetch today's vitals — query from midnight to end-of-day
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date();
+            todayEnd.setHours(23, 59, 59, 999);
+            const vRes = await apiService.patients.getVitals({ 
+                start_date: todayStart.toISOString(), 
+                end_date: todayEnd.toISOString() 
+            });
+            const todayVitals = vRes.data.vitals;
+            if (todayVitals && todayVitals.length > 0) {
+                setVitals(todayVitals[todayVitals.length - 1]);
+            } else {
+                setVitals(null);
+            }
+
 
             const { data } = await apiService.medicines.getToday();
             const medicines = (data.log?.medicines || []).map((m) => ({
@@ -134,10 +174,47 @@ export default function PatientHomeScreen({ navigation }) {
         }
     }, []);
 
-    useEffect(() => {
-        fetchData();
-        runAnimations();
-    }, [fetchData, runAnimations]);
+    // ─── Submit new vitals ──────────────────────────────────────
+    const handleLogVitals = async () => {
+        setFormError(null);
+        const hr = Number(formValues.heart_rate);
+        const sys = Number(formValues.systolic);
+        const dia = Number(formValues.diastolic);
+        const o2 = Number(formValues.oxygen_saturation);
+        const hyd = Number(formValues.hydration);
+
+        if (!hr || !sys || !dia || !o2 || !hyd) {
+            setFormError('All fields are required.');
+            return;
+        }
+
+        try {
+            setSubmitLoading(true);
+            await apiService.patients.logVitals({
+                date: new Date().toISOString(),
+                heart_rate: hr,
+                blood_pressure: { systolic: sys, diastolic: dia },
+                oxygen_saturation: o2,
+                hydration: hyd,
+            });
+            setIsLogging(false);
+            setFormValues({ heart_rate: '', systolic: '', diastolic: '', oxygen_saturation: '', hydration: '' });
+            fetchData();
+        } catch (err) {
+            setFormError(handleAxiosError(err));
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    // Use focus effect to refresh data when returning from Vitals History/Log
+    useFocusEffect(
+        useCallback(() => {
+            fetchData();
+            runAnimations();
+            return () => {};
+        }, [fetchData, runAnimations])
+    );
 
 
     const toggleMed = async (med) => {
@@ -161,6 +238,14 @@ export default function PatientHomeScreen({ navigation }) {
         return 'Good Evening,';
     };
 
+    // Derived stats
+    let daysPremiumRemaining = 0;
+    if (patient?.subscription?.expires_at) {
+        const diffTime = new Date(patient.subscription.expires_at) - new Date();
+        daysPremiumRemaining = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+    const callsFreq = patient?.call_frequency_days || 7;
+
     if (loading) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -170,8 +255,9 @@ export default function PatientHomeScreen({ navigation }) {
     }
 
     return (
-        <View style={styles.container}>
-            <View style={styles.headerWrap}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.container}>
+                <View style={styles.headerWrap}>
                 <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
                     {/* Decorative Shapes */}
                     <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
@@ -202,7 +288,12 @@ export default function PatientHomeScreen({ navigation }) {
                 </LinearGradient>
             </View>
 
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                style={styles.body} 
+                contentContainerStyle={styles.bodyContent} 
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
                 <Animated.View style={[styles.headerStatsRow, { opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
                     <View style={styles.statMiniCardEnhanced}>
                         <View style={[styles.statIconBox, { backgroundColor: 'rgba(14,165,233,0.1)' }]}><Pill size={18} color="#0EA5E9" /></View>
@@ -211,12 +302,12 @@ export default function PatientHomeScreen({ navigation }) {
                     </View>
                     <View style={styles.statMiniCardEnhanced}>
                         <View style={[styles.statIconBox, { backgroundColor: 'rgba(34,197,94,0.1)' }]}><PhoneCall size={18} color="#22C55E" /></View>
-                        <Text style={styles.statMiniVal}>2</Text>
-                        <Text style={styles.statMiniLabel}>Calls Left</Text>
+                        <Text style={styles.statMiniVal}>{callsFreq}</Text>
+                        <Text style={styles.statMiniLabel}>Days/Call</Text>
                     </View>
                     <View style={styles.statMiniCardEnhanced}>
                         <View style={[styles.statIconBox, { backgroundColor: 'rgba(234,179,8,0.1)' }]}><CalendarCheck size={18} color="#EAB308" /></View>
-                        <Text style={styles.statMiniVal}>45</Text>
+                        <Text style={styles.statMiniVal}>{daysPremiumRemaining}</Text>
                         <Text style={styles.statMiniLabel}>Days Premium</Text>
                     </View>
                 </Animated.View>
@@ -225,17 +316,80 @@ export default function PatientHomeScreen({ navigation }) {
                     <View style={styles.section}>
                         <View style={styles.sectionHeaderRow}>
                             <Text style={styles.sectionHeader}>MY VITALS</Text>
-                            <Pressable style={styles.viewAllBtn}>
+                            <Pressable style={styles.viewAllBtn} onPress={() => navigation.navigate('VitalsHistory')}>
                                 <Text style={styles.viewAllText}>History</Text>
                                 <ChevronRight size={14} color="#64748B" />
                             </Pressable>
                         </View>
+                        
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.vitalsScroll}>
-                            <VitalsCard label="Heart Rate" value="72" unit="bpm" icon={Heart} color="#EF4444" status="Stable" />
-                            <VitalsCard label="Blood Pressure" value="120/80" unit="mmHg" icon={Activity} color="#3B86FF" status="Normal" />
-                            <VitalsCard label="Oxygen" value="98" unit="%" icon={Wind} color="#06B6D4" status="Good" />
-                            <VitalsCard label="Hydration" value="1.8" unit="L" icon={Droplets} color="#0EA5E9" status="On Track" />
+                            <VitalsCard label="Heart Rate" value={vitals?.heart_rate || '—'} unit="bpm" icon={Heart} color="#EF4444" status={vitals?.heart_rate ? 'Recorded' : 'Not Logged'} />
+                            <VitalsCard label="Blood Pressure" value={vitals?.blood_pressure?.systolic ? `${vitals.blood_pressure.systolic}/${vitals.blood_pressure.diastolic}` : '—'} unit="mmHg" icon={Activity} color="#3B86FF" status={vitals?.blood_pressure?.systolic ? 'Recorded' : 'Not Logged'} />
+                            <VitalsCard label="Oxygen" value={vitals?.oxygen_saturation != null ? vitals.oxygen_saturation : '—'} unit="%" icon={Wind} color="#06B6D4" status={vitals?.oxygen_saturation != null ? 'Recorded' : 'Not Logged'} />
+                            <VitalsCard label="Hydration" value={vitals?.hydration != null ? vitals.hydration : '—'} unit="%" icon={Droplets} color="#0EA5E9" status={vitals?.hydration != null ? 'Recorded' : 'Not Logged'} />
                         </ScrollView>
+
+                        {/* ── Log Vitals Form ──────────────────────── */}
+                        <View style={styles.chartCardLog}>
+                            <Pressable
+                                style={styles.logToggleRow}
+                                onPress={() => { setIsLogging(!isLogging); setFormError(null); }}
+                            >
+                                <Text style={styles.chartTitleLog}>Log Today's Vitals</Text>
+                                <View style={[styles.addBadge, isLogging && styles.addBadgeCancel]}>
+                                    <Text style={[styles.addBadgeTxt, isLogging && styles.addBadgeCancelTxt]}>{isLogging ? 'Cancel' : '+ Add Entry'}</Text>
+                                </View>
+                            </Pressable>
+
+                            {isLogging && (
+                                <View style={styles.formArea}>
+                                    {formError && (
+                                        <View style={[styles.errorBanner, { marginBottom: 12 }]}>
+                                            <AlertTriangle size={16} color="#DC2626" />
+                                            <Text style={styles.errorText}>{formError}</Text>
+                                        </View>
+                                    )}
+
+                                    <View style={styles.formRow}>
+                                        <View style={styles.formGroup}>
+                                            <Text style={styles.formLabel}>Heart Rate (bpm)</Text>
+                                            <TextInput style={styles.formInput} keyboardType="numeric" placeholder="72" placeholderTextColor="#94A3B8"
+                                                value={formValues.heart_rate} onChangeText={(t) => setFormValues((p) => ({ ...p, heart_rate: t }))} />
+                                        </View>
+                                        <View style={styles.formGroup}>
+                                            <Text style={styles.formLabel}>O₂ Saturation (%)</Text>
+                                            <TextInput style={styles.formInput} keyboardType="numeric" placeholder="98" placeholderTextColor="#94A3B8"
+                                                value={formValues.oxygen_saturation} onChangeText={(t) => setFormValues((p) => ({ ...p, oxygen_saturation: t }))} />
+                                        </View>
+                                    </View>
+
+                                    <Text style={[styles.formLabel, { marginTop: 14 }]}>Blood Pressure (mmHg)</Text>
+                                    <View style={styles.formRow}>
+                                        <View style={styles.formGroup}>
+                                            <TextInput style={styles.formInput} keyboardType="numeric" placeholder="Systolic (120)" placeholderTextColor="#94A3B8"
+                                                value={formValues.systolic} onChangeText={(t) => setFormValues((p) => ({ ...p, systolic: t }))} />
+                                        </View>
+                                        <View style={styles.formGroup}>
+                                            <TextInput style={styles.formInput} keyboardType="numeric" placeholder="Diastolic (80)" placeholderTextColor="#94A3B8"
+                                                value={formValues.diastolic} onChangeText={(t) => setFormValues((p) => ({ ...p, diastolic: t }))} />
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.formGroup}>
+                                        <Text style={[styles.formLabel, { marginTop: 14 }]}>Hydration (%)</Text>
+                                        <TextInput style={styles.formInput} keyboardType="numeric" placeholder="65" placeholderTextColor="#94A3B8"
+                                            value={formValues.hydration} onChangeText={(t) => setFormValues((p) => ({ ...p, hydration: t }))} />
+                                    </View>
+
+                                    <Pressable style={styles.submitBtn} onPress={handleLogVitals} disabled={submitLoading}>
+                                        {submitLoading
+                                            ? <ActivityIndicator color="#FFF" />
+                                            : <Text style={styles.submitTxt}>Save Record</Text>
+                                        }
+                                    </Pressable>
+                                </View>
+                            )}
+                        </View>
                     </View>
                 </Animated.View>
 
@@ -294,7 +448,8 @@ export default function PatientHomeScreen({ navigation }) {
                     </View>
                 </Animated.View>
             </ScrollView>
-        </View>
+            </View>
+        </KeyboardAvoidingView>
     );
 
 }
@@ -414,5 +569,41 @@ const styles = StyleSheet.create({
     quickTextView: { flex: 1 },
     quickCardTitle: { fontSize: 15, fontWeight: '800', color: '#1E293B' },
     quickCardSub: { fontSize: 12, color: '#64748B', marginTop: 3, fontWeight: '600' },
+
+    /* Log Form Styles */
+    chartCardLog: {
+        backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, marginTop: 24,
+        borderWidth: 1, borderColor: '#F1F5F9',
+        shadowColor: 'rgba(10, 36, 99, 0.1)', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 1, shadowRadius: 20, elevation: 5,
+    },
+    chartTitleLog: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+    logToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    addBadge: { backgroundColor: 'rgba(59,134,255,0.1)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+    addBadgeTxt: { color: '#3B86FF', fontSize: 13, fontWeight: '700' },
+    addBadgeCancel: { backgroundColor: 'rgba(239,68,68,0.1)' },
+    addBadgeCancelTxt: { color: '#EF4444' },
+
+    formArea: { marginTop: 20 },
+    formRow: { flexDirection: 'row', gap: 12 },
+    formGroup: { flex: 1, marginBottom: 4 },
+    formLabel: { fontSize: 11, fontWeight: '700', color: '#64748B', textTransform: 'uppercase', marginBottom: 6, letterSpacing: 0.5 },
+    formInput: {
+        backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12,
+        paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: '#1E293B', fontWeight: '500',
+    },
+
+    submitBtn: {
+        borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 20,
+        overflow: 'hidden', backgroundColor: '#3B86FF',
+        shadowColor: '#3B86FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    },
+    submitTxt: { color: '#FFF', fontSize: 15, fontWeight: '700', letterSpacing: 0.3 },
+
+    errorBanner: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA',
+        borderRadius: 16, padding: 14, gap: 10,
+    },
+    errorText: { flex: 1, color: '#991B1B', fontSize: 13, fontWeight: '600', lineHeight: 18 },
 });
 

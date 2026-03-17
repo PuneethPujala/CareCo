@@ -17,6 +17,7 @@ const reportRoutes = require('./routes/reports');
 const usersPatientRoutes = require('./routes/users/patients');
 const usersCallerRoutes = require('./routes/users/callers');
 const usersMedicineRoutes = require('./routes/users/medicines');
+const vitalsRoutes = require('./routes/vitalsRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,15 +31,7 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(helmet());
 app.use(compression());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-});
-app.use('/api/', limiter);
-
-// CORS configuration
+// CORS configuration (MUST be before rate limiter or any route that needs CORS)
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? ['https://your-production-domain.com']
@@ -46,14 +39,22 @@ app.use(cors({
       // Allow requests with no origin (like mobile apps)
       if (!origin) return callback(null, true);
       // Allow all local network origins for dev
-      if (origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/) ||
-        origin.match(/^exp:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/)) {
+      if (origin.match(/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+)(:\d+)?$/) ||
+        origin.match(/^exp:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.\d+\.\d+\.\d+)(:\d+)?$/)) {
         return callback(null, true);
       }
       callback(null, true); // Fallback: allow all in dev for easier mobile testing
     },
   credentials: true,
 }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+});
+app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -84,6 +85,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/users/patients', usersPatientRoutes);
 app.use('/api/users/callers', usersCallerRoutes);
 app.use('/api/users/medicines', usersMedicineRoutes);
+app.use('/api/vitals', vitalsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

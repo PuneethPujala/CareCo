@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Patient = require('../../models/Patient');
 const CallLog = require('../../models/CallLog');
 const MedicineLog = require('../../models/MedicineLog');
+const VitalLog = require('../../models/VitalLog');
 const Caller = require('../../models/Caller');
 const { authenticate } = require('../../middleware/authenticate');
 
@@ -443,6 +444,82 @@ router.get('/me/previous-callers', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Get previous callers error:', error);
         res.status(500).json({ error: 'Failed to get previous callers' });
+    }
+});
+
+/**
+ * POST /api/users/patients/me/vitals
+ * Log new vitals for a specific date (or today).
+ * Uses the updated VitalLog schema (oxygen_saturation, hydration as %).
+ */
+router.post('/me/vitals', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        const { date, heart_rate, blood_pressure, oxygen_saturation, hydration } = req.body;
+        const logDate = date ? new Date(date) : new Date();
+
+        // Create new log (we no longer overwrite, allowing multiple entries per day)
+        const vitalLog = new VitalLog({
+            patient_id: patient._id,
+            date: logDate,
+            heart_rate,
+            blood_pressure,
+            oxygen_saturation,
+            hydration,
+        });
+
+        await vitalLog.save();
+        res.status(201).json({ message: 'Vitals logged successfully', vitals: vitalLog });
+    } catch (error) {
+        console.error('Log vitals error:', error);
+        if (error.name === 'ValidationError') {
+            const details = Object.values(error.errors).map(e => e.message);
+            return res.status(400).json({ error: 'Validation failed', details });
+        }
+        res.status(500).json({ error: 'Failed to log vitals' });
+    }
+});
+
+/**
+ * GET /api/users/patients/me/vitals
+ * Fetch vitals history with optional start_date and end_date queries
+ */
+router.get('/me/vitals', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        const { start_date, end_date } = req.query;
+        let query = { patient_id: patient._id };
+
+        if (start_date || end_date) {
+            query.date = {};
+            if (start_date) {
+                // Ensure we start at the beginning of the local day
+                const sd = new Date(start_date);
+                sd.setHours(0, 0, 0, 0);
+                query.date.$gte = sd;
+            }
+            if (end_date) {
+                // Ensure we end at the very end of the local day
+                const ed = new Date(end_date);
+                ed.setHours(23, 59, 59, 999);
+                query.date.$lte = ed;
+            }
+        } else {
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            thirtyDaysAgo.setHours(0, 0, 0, 0);
+            query.date = { $gte: thirtyDaysAgo };
+        }
+
+        const vitals = await VitalLog.find(query).sort({ date: 1 }); // Ascending order for graphs
+        res.json({ vitals });
+    } catch (error) {
+        console.error('Get vitals error:', error);
+        res.status(500).json({ error: 'Failed to fetch vitals history' });
     }
 });
 

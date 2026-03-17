@@ -2,11 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Text, StyleSheet, TextInput, Pressable, Platform,
     KeyboardAvoidingView, ScrollView, Animated, ActivityIndicator, Alert,
+    BackHandler,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Mail, Lock, Eye, EyeOff, HeartPulse, AlertCircle, Smartphone, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { parseError } from '../../utils/parseError';
+import analytics from '../../utils/analytics';
 import { colors } from '../../theme';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
@@ -29,6 +32,11 @@ export default function LoginScreen({ navigation }) {
     const [emailFocused, setEmailFocused] = useState(false);
     const [passFocused, setPassFocused] = useState(false);
 
+    // §13 FIX: useRef to prevent double-tap
+    const isSubmittingRef = useRef(false);
+    // §13 FIX: AbortController for request cancellation on unmount
+    const abortRef = useRef(null);
+
     // Refs for programmatic focus
     const emailRef = useRef(null);
     const passwordRef = useRef(null);
@@ -48,6 +56,23 @@ export default function LoginScreen({ navigation }) {
         ]).start();
     }, []);
 
+    // §10 FIX: Android back button on Login exits app
+    useEffect(() => {
+        const backAction = () => {
+            BackHandler.exitApp();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', backAction);
+        return () => sub.remove();
+    }, []);
+
+    // §13 FIX: Cancel pending requests on unmount
+    useEffect(() => {
+        return () => {
+            if (abortRef.current) abortRef.current.abort();
+        };
+    }, []);
+
     // Handle Google OAuth response
     useEffect(() => {
         if (response?.type === 'success') {
@@ -62,37 +87,70 @@ export default function LoginScreen({ navigation }) {
             setErrorText('');
             const result = await signInWithGoogle(idToken);
             if (result?.isNewUser) {
-                // New Google user on the LOGIN screen — they need to sign up first
                 await supabase.auth.signOut();
                 setErrorText('No CareCo account found for this Google account. Please sign up first.');
+                analytics.loginFailure('google_no_account');
+            } else {
+                analytics.loginSuccess(result?.user?.id);
             }
-            // If existing user, AuthContext sets profile & user → navigator auto-redirects
         } catch (error) {
-            setErrorText(error.message || 'Google sign-in failed');
+            const { general } = parseError(error);
+            setErrorText(general);
+            analytics.loginFailure(error?.code || 'google_error');
         } finally {
             setLoading(false);
         }
     };
 
     const handleLogin = async () => {
-        if (!email || !password) {
-            setErrorText('Please enter both email and password.');
+        // §13 FIX: useRef guard prevents double tap
+        if (isSubmittingRef.current) return;
+
+        // §14 FIX: Trim and lowercase email
+        const cleanEmail = email.trim().toLowerCase();
+
+        // §4 FIX: Client validation before any API call
+        if (!cleanEmail) {
+            setErrorText('Please enter your email address.');
             return;
         }
+        if (!/\S+@\S+\.\S+/.test(cleanEmail)) {
+            setErrorText('Please enter a valid email address.');
+            return;
+        }
+        if (!password) {
+            setErrorText('Please enter your password.');
+            return;
+        }
+        if (password.length < 6) {
+            setErrorText('Password must be at least 6 characters.');
+            return;
+        }
+
+        isSubmittingRef.current = true;
         setLoading(true);
         setErrorText('');
+
         try {
-            await signIn(email, password, 'patient');
-        } catch (error) {
-            setErrorText(error?.message || 'Login failed. Please try again.');
+            const result = await signIn(cleanEmail, password, 'patient');
+            // §14 FIX: Clear sensitive state after success
+            setEmail('');
             setPassword('');
+            analytics.loginSuccess(result?.session?.user?.id);
+        } catch (error) {
+            // §4 FIX: Supabase-specific error mapping
+            const { general } = parseError(error);
+            setErrorText(general);
+            setPassword('');
+            analytics.loginFailure(error?.code || 'login_error');
         } finally {
             setLoading(false);
+            isSubmittingRef.current = false;
         }
     };
 
     const handleForgotPassword = async () => {
-        const resetEmail = email.trim();
+        const resetEmail = email.trim().toLowerCase();
         if (!resetEmail || !/\S+@\S+\.\S+/.test(resetEmail)) {
             Alert.alert('Enter Your Email', 'Please enter a valid email address in the email field above, then tap Forgot Password again.');
             return;
@@ -102,10 +160,21 @@ export default function LoginScreen({ navigation }) {
             await resetPassword(resetEmail);
             Alert.alert('Check Your Email', `We've sent a password reset link to ${resetEmail}. Please check your inbox.`);
         } catch (error) {
-            Alert.alert('Reset Failed', error?.message || 'Failed to send reset email. Please try again.');
+            const { general } = parseError(error);
+            Alert.alert('Reset Failed', general);
         } finally {
             setLoading(false);
         }
+    };
+
+    // §4 FIX: Clear errors when user starts typing
+    const handleEmailChange = (v) => {
+        setEmail(v);
+        if (errorText) setErrorText('');
+    };
+    const handlePasswordChange = (v) => {
+        setPassword(v);
+        if (errorText) setErrorText('');
     };
 
     return (
@@ -170,7 +239,7 @@ export default function LoginScreen({ navigation }) {
                         </View>
                     ) : null}
 
-                    {/* Email Field */}
+                    {/* Email Field — §14 FIX: autoCorrect, spellCheck, textContentType */}
                     <View style={styles.fieldGroup}>
                         <Text style={styles.label}>Email Address</Text>
                         <Pressable
@@ -184,9 +253,12 @@ export default function LoginScreen({ navigation }) {
                                 placeholder="name@example.com"
                                 placeholderTextColor="#94A3B8"
                                 value={email}
-                                onChangeText={setEmail}
+                                onChangeText={handleEmailChange}
                                 autoCapitalize="none"
                                 keyboardType="email-address"
+                                autoCorrect={false}
+                                spellCheck={false}
+                                textContentType="emailAddress"
                                 onFocus={() => setEmailFocused(true)}
                                 onBlur={() => setEmailFocused(false)}
                                 blurOnSubmit={false}
@@ -208,8 +280,9 @@ export default function LoginScreen({ navigation }) {
                                 placeholder="Enter password"
                                 placeholderTextColor="#94A3B8"
                                 value={password}
-                                onChangeText={setPassword}
+                                onChangeText={handlePasswordChange}
                                 secureTextEntry={!showPassword}
+                                textContentType="password"
                                 onFocus={() => setPassFocused(true)}
                                 onBlur={() => setPassFocused(false)}
                             />
@@ -307,7 +380,7 @@ const styles = StyleSheet.create({
         shadowRadius: 30,
         elevation: 10,
         marginBottom: 40,
-        zIndex: 5, // Ensure it's above hero for touches
+        zIndex: 5,
     },
 
     socialRowPremium: { flexDirection: 'row', gap: 16, marginBottom: 32 },

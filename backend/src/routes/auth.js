@@ -138,27 +138,46 @@ router.post('/register', async (req, res) => {
         }
 
         // Create Profile (staff identity record)
-        const profile = new Profile({
-            supabaseUid:   finalUid,
-            email,
-            fullName,
-            role:          'patient',
-            organizationId: targetOrgId,
-            phone:          phone || null,
-            emailVerified:  true,
-        });
-        await profile.save();
+        // §5 FIX: Wrap MongoDB creation in try-catch — on failure, delete the Supabase user
+        let profile, patient;
+        try {
+            profile = new Profile({
+                supabaseUid:   finalUid,
+                email,
+                fullName,
+                role:          'patient',
+                organizationId: targetOrgId,
+                phone:          phone || null,
+                emailVerified:  true,
+            });
+            await profile.save();
 
-        // Create Patient (medical/care record) — city may be null if not provided
-        const patient = new Patient({
-            supabase_uid:    finalUid,
-            profile_id:      profile._id,
-            email,
-            name:            fullName,
-            city:            city || null,
-            organization_id: targetOrgId,
-        });
-        await patient.save();
+            // Create Patient (medical/care record) — city may be null if not provided
+            patient = new Patient({
+                supabase_uid:    finalUid,
+                profile_id:      profile._id,
+                email,
+                name:            fullName,
+                city:            city || null,
+                organization_id: targetOrgId,
+            });
+            await patient.save();
+        } catch (mongoError) {
+            // Cleanup: delete Supabase user to prevent orphaned auth account
+            if (!supabaseUid) {
+                try {
+                    await supabase.auth.admin.deleteUser(finalUid);
+                } catch (cleanupError) {
+                    console.error('Failed to cleanup Supabase user after MongoDB error:', cleanupError.message);
+                }
+            }
+            // Also cleanup partial MongoDB docs
+            if (profile?._id) {
+                try { await Profile.findByIdAndDelete(profile._id); } catch { }
+            }
+            throw mongoError;
+        }
+
 
         // Increment org patient counter
         await Organization.findByIdAndUpdate(targetOrgId, {
