@@ -1,5 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
-import { LogBox } from 'react-native';
+import { LogBox, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold, Inter_900Black } from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync();
 
 // Ignore specific warnings caused by react-native-chart-kit on Web
 LogBox.ignoreLogs([
@@ -31,6 +37,27 @@ const linking = {
 };
 
 export default function App() {
+    const [fontsLoaded] = useFonts({
+        DMSans_400Regular,
+        DMSans_500Medium,
+        DMSans_600SemiBold,
+        DMSans_700Bold,
+        Inter_400Regular,
+        Inter_500Medium,
+        Inter_600SemiBold,
+        Inter_700Bold,
+        Inter_800ExtraBold,
+        Inter_900Black,
+    });
+
+    useEffect(() => {
+        if (fontsLoaded) {
+            SplashScreen.hideAsync().catch(() => {});
+        }
+    }, [fontsLoaded]);
+
+    if (!fontsLoaded) return null;
+
     return (
         <SafeAreaProvider>
             <NetworkProvider>
