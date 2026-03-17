@@ -58,6 +58,21 @@ const PatientSchema = new mongoose.Schema(
             postcode: { type: String, trim: true },
             country: { type: String, trim: true, default: 'UK' },
         },
+        saved_addresses: [
+            {
+                label: { type: String, enum: ['Home', 'Office', 'Family', 'Other'], default: 'Other' },
+                title: String,
+                address_line: String, // Full formatted address string
+                flat_no: String,
+                street: String,
+                city: String,
+                state: String,
+                postcode: String,
+                lat: Number,
+                lon: Number,
+                is_default: { type: Boolean, default: false },
+            }
+        ],
 
         // ── Relationships ─────────────────────────────
         organization_id: {

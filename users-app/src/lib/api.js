@@ -135,7 +135,12 @@ export const apiService = {
     // Patient-specific endpoints
     patients: {
         getCities: () => api.get('/users/patients/cities'),
+        searchLocation: (query) => api.get(`/users/patients/location/search?q=${encodeURIComponent(query)}`),
         reverseGeocode: (lat, lon) => api.get(`/users/patients/location/reverse?lat=${lat}&lon=${lon}`),
+        getSavedAddresses: () => api.get('/users/patients/me/addresses'),
+        addSavedAddress: (data) => api.post('/users/patients/me/addresses', data),
+        updateSavedAddress: (id, data) => api.put(`/users/patients/me/addresses/${id}`, data),
+        deleteSavedAddress: (id) => api.delete(`/users/patients/me/addresses/${id}`),
         getMe: () => api.get('/users/patients/me'),
         updateMe: (data) => api.put('/users/patients/me', data),
         subscribe: (data) => api.post('/users/patients/subscribe', data),

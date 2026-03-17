@@ -193,6 +193,136 @@ router.get('/location/reverse', async (req, res) => {
 });
 
 /**
+ * GET /api/users/patients/location/search
+ * Proxy endpoint for forward geocoding (searching by name/pincode)
+ * Query params: q
+ */
+router.get('/location/search', async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q) {
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+
+        const fetch = global.fetch || require('node-fetch');
+
+        // Limit results to India (countrycodes=in) and city/postal results
+        const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&countrycodes=in&limit=5`,
+            { headers: { 'User-Agent': 'CareCo-Backend/1.0' } }
+        );
+
+        const data = await response.json();
+        
+        // Return more granular results (localities, sectors, etc.)
+        const results = data.map(item => ({
+            id: item.place_id,
+            display_name: item.display_name,
+            name: item.name || item.address?.suburb || item.address?.neighbourhood || item.address?.city_district || item.address?.city,
+            city: item.address?.city || item.address?.town || item.address?.village,
+            state: item.address?.state,
+            pincode: item.address?.postcode,
+            lat: parseFloat(item.lat),
+            lon: parseFloat(item.lon)
+        }));
+
+        res.json({ results });
+    } catch (error) {
+        console.error('Location search error:', error);
+        res.status(500).json({ error: 'Failed to search location' });
+    }
+});
+
+/**
+ * GET /api/users/patients/me/addresses
+ * Get saved addresses for the patient
+ */
+router.get('/me/addresses', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id }).select('saved_addresses');
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        res.json({ saved_addresses: patient.saved_addresses || [] });
+    } catch (error) {
+        console.error('Get addresses error:', error);
+        res.status(500).json({ error: 'Failed to get saved addresses' });
+    }
+});
+
+/**
+ * POST /api/users/patients/me/addresses
+ * Add a new saved address
+ */
+router.post('/me/addresses', authenticate, async (req, res) => {
+    try {
+        const { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { 
+                $push: { 
+                    saved_addresses: { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } 
+                } 
+            },
+            { new: true }
+        );
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        res.status(201).json({ saved_addresses: patient.saved_addresses, message: 'Address saved successfully' });
+    } catch (error) {
+        console.error('Add address error:', error);
+        res.status(500).json({ error: 'Failed to save address' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/addresses/:id
+ * Update a saved address
+ */
+router.put('/me/addresses/:id', authenticate, async (req, res) => {
+    try {
+        const { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { 
+                supabase_uid: req.user.id,
+                "saved_addresses._id": new mongoose.Types.ObjectId(req.params.id)
+            },
+            { 
+                $set: { 
+                    "saved_addresses.$": { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } 
+                } 
+            },
+            { new: true }
+        );
+        if (!patient) return res.status(404).json({ error: 'Patient or address not found' });
+        res.json({ saved_addresses: patient.saved_addresses, message: 'Address updated successfully' });
+    } catch (error) {
+        console.error('Update address error:', error);
+        res.status(500).json({ error: 'Failed to update address' });
+    }
+});
+
+/**
+ * DELETE /api/users/patients/me/addresses/:id
+ * Delete a saved address
+ */
+router.delete('/me/addresses/:id', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        
+        // Use Mongoose subdocument remove
+        const address = patient.saved_addresses.id(req.params.id);
+        if (address) {
+            address.remove();
+            await patient.save();
+        }
+        
+        res.json({ saved_addresses: patient.saved_addresses, message: 'Address deleted successfully' });
+    } catch (error) {
+        console.error('Delete address error:', error);
+        res.status(500).json({ error: 'Failed to delete address' });
+    }
+});
+
+/**
  * GET /api/users/patients/me
  * Patient reads their own profile — auto-seeds basic Free profile on first visit
  */

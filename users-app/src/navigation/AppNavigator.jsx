@@ -24,6 +24,8 @@ import SubscribePlansScreen from '../screens/patient/SubscribePlansScreen';
 import PaymentScreen from '../screens/patient/PaymentScreen';
 import WaitingScreen from '../screens/patient/WaitingScreen';
 import VitalsHistoryScreen from '../screens/patient/VitalsHistoryScreen';
+import LocationSearchScreen from '../screens/patient/LocationSearchScreen';
+import AddAddressScreen from '../screens/patient/AddAddressScreen';
 
 // Caller screens
 import CallerHomeScreen from '../screens/caller/HomeScreen';
@@ -155,6 +157,8 @@ const MainAppStack = ({ isCaller }) => (
                 <Stack.Screen name="PatientTabs" component={PatientTabNavigator} />
                 <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ presentation: 'modal' }} />
                 <Stack.Screen name="VitalsHistory" component={VitalsHistoryScreen} />
+                <Stack.Screen name="LocationSearch" component={LocationSearchScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+                <Stack.Screen name="AddAddress" component={AddAddressScreen} options={{ presentation: 'modal' }} />
                 <Stack.Screen name="SubscribePlans" component={SubscribePlansScreen} />
                 <Stack.Screen name="Payment" component={PaymentScreen} />
                 <Stack.Screen name="WaitingRoom" component={WaitingScreen} />

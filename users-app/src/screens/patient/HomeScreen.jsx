@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, TextInput, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, TextInput, KeyboardAvoidingView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Pill, PhoneCall, CalendarCheck, Sunrise, Sun, Moon,
@@ -258,35 +258,75 @@ export default function PatientHomeScreen({ navigation }) {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={styles.container}>
                 <View style={styles.headerWrap}>
-                <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
-                    {/* Decorative Shapes */}
-                    <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
-                    <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
+                    <LinearGradient 
+                        colors={['#0A2463', '#1E5FAD']} 
+                        start={{ x: 0, y: 0 }} 
+                        end={{ x: 1, y: 1 }} 
+                        style={styles.headerGradient}
+                    >
+                        {/* More Layered Decorative Shapes */}
+                        <View style={[styles.decorativeCircle, { top: -30, right: -40, width: 200, height: 200, backgroundColor: 'rgba(59, 130, 246, 0.2)' }]} />
+                        <View style={[styles.decorativeCircle, { top: 40, left: -60, width: 160, height: 160, backgroundColor: 'rgba(37, 99, 235, 0.15)' }]} />
+                        <View style={[styles.decorativeCircle, { bottom: -60, right: 20, width: 120, height: 120, backgroundColor: 'rgba(96, 165, 250, 0.1)' }]} />
 
-                    <Animated.View style={[styles.headerTop, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }] }]}>
-                        <View>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                <MapPin size={12} color="#BDD4EE" />
-                                <Text style={styles.locationLabel}>{patient?.city || profile?.city || 'Detecting...'}</Text>
-                            </View>
-                            <Text style={styles.greetingGreeting}>{getGreeting()}</Text>
-                            <Text style={styles.greetingName}>{displayName?.split(' ')[0] || 'User'}</Text>
-                            <Text style={styles.dateLabel}>{dateStr}</Text>
-                        </View>
-                        <View style={styles.avatarRowContainer}>
-                            <Pressable style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
-                                <Bell size={24} color="#FFFFFF" strokeWidth={2} />
-                                <View style={styles.bellBadge} />
+                        <Animated.View style={[styles.headerContent, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-15, 0] }) }] }]}>
+                            {/* Location at the very top */}
+                            <Pressable 
+                                onPress={() => navigation.navigate('LocationSearch')}
+                                style={({ pressed }) => [
+                                    styles.locationPill,
+                                    { opacity: pressed ? 0.8 : 1 }
+                                ]}
+                            >
+                                <View style={styles.locationIconBox}>
+                                    <MapPin size={10} color="#FFFFFF" fill="#FFFFFF" />
+                                </View>
+                                <Text style={styles.locationLabel} numberOfLines={1}>
+                                    {patient?.city || profile?.city || 'Detecting...'}
+                                </Text>
+                                <ChevronRight size={10} color="rgba(255,255,255,0.6)" strokeWidth={3} />
                             </Pressable>
-                            <View style={styles.avatarGlowRing}>
-                                <View style={styles.avatarInner}>
-                                    <Text style={styles.avatarTxt}>{displayName?.charAt(0) || 'U'}</Text>
+
+                            {/* Main Row: Name, Bell, Avatar */}
+                            <View style={styles.mainHeaderRow}>
+                                <View style={styles.headerLeft}>
+                                    <View style={styles.greetingGroupCompact}>
+                                        <Text style={styles.greetingGreeting}>{getGreeting()}</Text>
+                                        <Text style={styles.greetingNameCompact}>{displayName?.split(' ')[0] || 'User'}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.headerRight}>
+                                    <Pressable 
+                                        style={styles.bellBtnGlass} 
+                                        onPress={() => navigation.navigate('Notifications')}
+                                    >
+                                        <Bell size={20} color="#FFFFFF" strokeWidth={2} />
+                                        <View style={styles.bellBadgePremium} />
+                                    </Pressable>
+                                    
+                                    <TouchableOpacity 
+                                        activeOpacity={0.8}
+                                        style={styles.avatarContainerPremium}
+                                        onPress={() => navigation.navigate('Profile')}
+                                    >
+                                        <View style={styles.avatarOuterRing}>
+                                            <View style={styles.avatarInnerPremium}>
+                                                <Text style={styles.avatarTxtPremium}>{displayName?.charAt(0) || 'U'}</Text>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
-                        </View>
-                    </Animated.View>
-                </LinearGradient>
-            </View>
+
+                            {/* Date Badge shifted to bottom or integrated if needed, keeping it subtle for height reduction */}
+                            <View style={styles.dateBadge}>
+                                <CalendarDays size={10} color="rgba(255,255,255,0.5)" />
+                                <Text style={styles.dateLabelCompact}>{dateStr}</Text>
+                            </View>
+                        </Animated.View>
+                    </LinearGradient>
+                </View>
 
             <ScrollView 
                 style={styles.body} 
@@ -456,29 +496,139 @@ export default function PatientHomeScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-    headerWrap: { paddingBottom: 16 },
     headerGradient: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingBottom: 25, paddingHorizontal: 20,
-        borderBottomLeftRadius: 32, borderBottomRightRadius: 32,
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 15, elevation: 8,
+        paddingTop: Platform.OS === 'ios' ? 60 : 45,
+        paddingBottom: 28, 
+        paddingHorizontal: 20,
+        borderBottomLeftRadius: 40, 
+        borderBottomRightRadius: 40,
+        shadowColor: '#000', 
+        shadowOffset: { width: 0, height: 10 }, 
+        shadowOpacity: 0.2, 
+        shadowRadius: 15, 
+        elevation: 10,
         overflow: 'hidden',
     },
-    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
+    decorativeCircle: { position: 'absolute', borderRadius: 100 },
 
-    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, zIndex: 2 },
-    locationLabel: { fontSize: 12, color: '#BDD4EE', fontWeight: '600' },
-    greetingGreeting: { fontSize: 14, color: '#BDD4EE', fontWeight: '600', marginBottom: 2 },
-    greetingName: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', marginBottom: 4, letterSpacing: -0.5 },
-    dateLabel: { fontSize: 13, color: '#FFFFFF', opacity: 0.7, fontWeight: '500' },
+    headerContent: { zIndex: 2 },
+    mainHeaderRow: { 
+        flexDirection: 'row', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginTop: 4
+    },
+    headerLeft: { flex: 1 },
+    headerRight: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        gap: 12 
+    },
 
-    avatarRowContainer: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    bellBtn: { position: 'relative', width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-    bellBadge: { position: 'absolute', top: 12, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 1.5, borderColor: '#1E5FAD' },
+    locationPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 22,
+        alignSelf: 'flex-start',
+        marginBottom: 10,
+        borderWidth: 1.5,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    locationIconBox: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#3B82F6',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 6,
+    },
+    locationLabel: { 
+        fontSize: 10, 
+        color: '#FFFFFF', 
+        fontWeight: '700', 
+        marginRight: 4,
+        letterSpacing: 0.2
+    },
 
-    avatarGlowRing: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, borderColor: '#3A86FF', backgroundColor: 'rgba(58,134,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-    avatarInner: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
-    avatarTxt: { fontSize: 18, fontWeight: '800', color: '#0A2463' },
+    greetingGroupCompact: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+    greetingGreeting: { 
+        fontSize: 13, 
+        color: 'rgba(255, 255, 255, 0.7)', 
+        fontWeight: '600' 
+    },
+    greetingNameCompact: { 
+        fontSize: 26, 
+        fontWeight: '900', 
+        color: '#FFFFFF', 
+        letterSpacing: -0.5,
+    },
+    dateBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
+    dateLabelCompact: { 
+        fontSize: 11, 
+        color: 'rgba(255, 255, 255, 0.5)', 
+        fontWeight: '600' 
+    },
+
+    bellBtnGlass: { 
+        width: 40, 
+        height: 40, 
+        borderRadius: 20, 
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    bellBadgePremium: { 
+        position: 'absolute', 
+        top: 11, 
+        right: 11, 
+        width: 7, 
+        height: 7, 
+        borderRadius: 3.5, 
+        backgroundColor: '#EF4444', 
+        borderWidth: 1.5, 
+        borderColor: '#1E40AF' 
+    },
+
+    avatarContainerPremium: {
+        shadowColor: 'rgba(0,0,0,0.2)',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+    },
+    avatarOuterRing: { 
+        width: 48, 
+        height: 48, 
+        borderRadius: 24, 
+        borderWidth: 1.5, 
+        borderColor: 'rgba(255, 255, 255, 0.3)', 
+        backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+    },
+    avatarInnerPremium: { 
+        width: 38, 
+        height: 38, 
+        borderRadius: 19, 
+        backgroundColor: '#FFFFFF', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+    },
+    avatarTxtPremium: { 
+        fontSize: 16, 
+        fontWeight: '900', 
+        color: '#1E3A8A' 
+    },
 
     headerStatsRow: {
         flexDirection: 'row',
