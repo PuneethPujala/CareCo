@@ -431,6 +431,95 @@ router.put('/me/emergency-contact', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/users/patients/me/trusted-contacts
+ * Patient gets their list of trusted contacts
+ */
+router.get('/me/trusted-contacts', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id }).select('trusted_contacts');
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        res.json({ trusted_contacts: patient.trusted_contacts || [] });
+    } catch (error) {
+        console.error('Get trusted contacts error:', error);
+        res.status(500).json({ error: 'Failed to get trusted contacts' });
+    }
+});
+
+/**
+ * POST /api/users/patients/me/trusted-contacts
+ * Patient adds a new trusted contact
+ */
+router.post('/me/trusted-contacts', authenticate, async (req, res) => {
+    try {
+        const { name, phone, relation, email, is_primary, can_view_data, permissions } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { 
+                $push: { 
+                    trusted_contacts: { name, phone, relation, email, is_primary, can_view_data, permissions: permissions || [] } 
+                } 
+            },
+            { new: true }
+        );
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        res.status(201).json({ trusted_contacts: patient.trusted_contacts, message: 'Trusted contact added successfully' });
+    } catch (error) {
+        console.error('Add trusted contact error:', error);
+        res.status(500).json({ error: 'Failed to add trusted contact' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/trusted-contacts/:id
+ * Patient updates a trusted contact
+ */
+router.put('/me/trusted-contacts/:id', authenticate, async (req, res) => {
+    try {
+        const { name, phone, relation, email, is_primary, can_view_data, permissions } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { 
+                supabase_uid: req.user.id,
+                "trusted_contacts._id": new mongoose.Types.ObjectId(req.params.id)
+            },
+            { 
+                $set: { 
+                    "trusted_contacts.$": { 
+                        _id: new mongoose.Types.ObjectId(req.params.id), // Keep original _id
+                        name, phone, relation, email, is_primary, can_view_data, permissions: permissions || [] 
+                    } 
+                } 
+            },
+            { new: true }
+        );
+        if (!patient) return res.status(404).json({ error: 'Patient or contact not found' });
+        res.json({ trusted_contacts: patient.trusted_contacts, message: 'Trusted contact updated successfully' });
+    } catch (error) {
+        console.error('Update trusted contact error:', error);
+        res.status(500).json({ error: 'Failed to update trusted contact' });
+    }
+});
+
+/**
+ * DELETE /api/users/patients/me/trusted-contacts/:id
+ * Patient deletes a trusted contact
+ */
+router.delete('/me/trusted-contacts/:id', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        
+        // Use Mongoose subdocument pull which handles casting to ObjectId correctly
+        patient.trusted_contacts.pull({ _id: req.params.id });
+        await patient.save();
+        
+        res.json({ trusted_contacts: patient.trusted_contacts, message: 'Trusted contact deleted successfully' });
+    } catch (error) {
+        console.error('Delete trusted contact error:', error);
+        res.status(500).json({ error: 'Failed to delete trusted contact' });
+    }
+});
+
+/**
  * GET /api/users/patients/me/caller
  * Patient gets their assigned caller's info
  */

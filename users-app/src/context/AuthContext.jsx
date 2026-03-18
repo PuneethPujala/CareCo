@@ -140,6 +140,11 @@ export function AuthProvider({ children }) {
                             return;
                         }
                     } catch (error) {
+                        // If 403 (Profile deleted from DB) or 401, log out to prevent cached ghost sessions
+                        if (error.response?.status === 403 || error.response?.status === 401) {
+                            await signOut();
+                            return;
+                        }
                         // §3 FIX: Fall back to cached profile for offline access
                         const cached = await getCachedProfile();
                         if (cached) {

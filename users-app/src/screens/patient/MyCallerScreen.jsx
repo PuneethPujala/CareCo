@@ -2,35 +2,36 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Platform,
   Pressable, ActivityIndicator, Linking, Animated,
-  Modal, TouchableOpacity, TouchableWithoutFeedback, Alert,
+  Modal, TouchableOpacity, TouchableWithoutFeedback, Alert, TextInput, KeyboardAvoidingView,
 } from 'react-native';
 import {
   Phone, PhoneIncoming, AlertTriangle, ShieldCheck,
-  Flag, Clock, Globe, Calendar, ChevronRight, X,
+  Flag, Clock, Globe, Calendar, ChevronRight, X, Users, Heart,
+  Plus, Edit2, Bell
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../theme';
 import { apiService } from '../../lib/api';
 
 const C = {
-  primary: '#3B82F6',
-  primaryDark: '#1D4ED8',
-  primarySoft: '#EFF6FF',
+  primary: '#6366F1',     // Indigo
+  primaryDark: '#4338CA',
+  primarySoft: '#EEF2FF',
   cardBg: '#FFFFFF',
-  pageBg: '#F5F7FA',
-  dark: '#0A0F1E',
-  mid: '#1E293B',
-  muted: '#64748B',
-  light: '#94A3B8',
-  border: '#E8EEF4',
-  borderMid: '#D1DCE8',
+  pageBg: '#F8FAFC',
+  dark: '#0F172A',
+  mid: '#334155',
+  muted: '#94A3B8',
+  light: '#CBD5E1',
+  border: '#F1F5F9',
+  borderMid: '#E2E8F0',
   success: '#10B981',
-  successBg: '#ECFDF5',
-  danger: '#EF4444',
-  dangerBg: '#FEF2F2',
+  successBg: '#D1FAE5',
+  danger: '#F43F5E',      // Rose
+  dangerBg: '#FFE4E6',
   warning: '#F59E0B',
-  warningBg: '#FEFCE8',
-  accent: '#6366F1',
+  warningBg: '#FEF3C7',
+  accent: '#06B6D4',      // Cyan
 };
 
 const STATUS_CONFIG = {
@@ -41,6 +42,14 @@ const STATUS_CONFIG = {
   rescheduled: { color: C.warning, bg: C.warningBg, Icon: Calendar, label: 'Rescheduled' },
 };
 
+const AVATAR_COLORS = [
+  { bg: '#EEF2FF', text: '#4338CA' }, // Indigo
+  { bg: '#FFE4E6', text: '#E11D48' }, // Rose
+  { bg: '#ECFCCB', text: '#4D7C0F' }, // Lime
+  { bg: '#FEF3C7', text: '#B45309' }, // Amber
+  { bg: '#E0F2FE', text: '#0369A1' }, // Sky
+];
+
 export default function MyCallerScreen({ navigation }) {
   const [patient, setPatient] = useState(null);
   const [caller, setCaller] = useState(null);
@@ -48,6 +57,13 @@ export default function MyCallerScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModal] = useState(false);
   const [flagging, setFlagging] = useState(false);
+
+  const [contacts, setContacts] = useState([]);
+  const [contactModal, setContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [contactForm, setContactForm] = useState({ name: '', phone: '', relation: '', email: '' });
+  const [isSavingContact, setIsSavingContact] = useState(false);
+  const contactModalAnim = useRef(new Animated.Value(0)).current;
 
   const staggerAnims = useRef([...Array(20)].map(() => new Animated.Value(0))).current;
   const modalAnim = useRef(new Animated.Value(0)).current;
@@ -110,6 +126,7 @@ export default function MyCallerScreen({ navigation }) {
           ]);
           setCaller(callerRes.data.caller);
           setCalls(callsRes.data.calls || []);
+          setContacts(pRes.data.patient?.trusted_contacts || []);
           runAnimations();
         }
       } catch (err) {
@@ -119,6 +136,78 @@ export default function MyCallerScreen({ navigation }) {
       }
     })();
   }, [runAnimations]);
+
+  const openContactModal = (contact = null) => {
+    if (contact) {
+      setEditingContact(contact);
+      setContactForm({ name: contact.name, phone: contact.phone, relation: contact.relation || '', email: contact.email || '' });
+    } else {
+      setEditingContact(null);
+      setContactForm({ name: '', phone: '', relation: '', email: '' });
+    }
+    setContactModal(true);
+    Animated.parallel([
+      Animated.spring(contactModalAnim, { toValue: 1, friction: 8, tension: 50, useNativeDriver: true }),
+      Animated.timing(backdropAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeContactModal = () => {
+    Animated.parallel([
+      Animated.timing(contactModalAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => {
+      setContactModal(false);
+      setEditingContact(null);
+    });
+  };
+
+  const saveContact = async () => {
+    if (!contactForm.name || !contactForm.phone) {
+      Alert.alert('Required', 'Name and Phone are required fields.');
+      return;
+    }
+    setIsSavingContact(true);
+    try {
+      let res;
+      if (editingContact) {
+        res = await apiService.patients.updateTrustedContact(editingContact._id, contactForm);
+      } else {
+        res = await apiService.patients.addTrustedContact(contactForm);
+      }
+      setContacts(res.data.trusted_contacts);
+      closeContactModal();
+    } catch (err) {
+      console.warn('Save contact error:', err.message);
+      Alert.alert('Error', 'Failed to save contact.');
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
+
+  const confirmRemoveContact = (id) => {
+    const performToggle = async () => {
+      try {
+        const res = await apiService.patients.deleteTrustedContact(id);
+        setContacts(res.data.trusted_contacts);
+      } catch (err) {
+        console.warn('Remove contact error:', err.message);
+        Alert.alert('Error', 'Failed to remove contact.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      // Direct confirm for web to bypass any RN Alert polyfill issues
+      if (window.confirm('Are you sure you want to remove this trusted contact?')) {
+        performToggle();
+      }
+    } else {
+      Alert.alert('Remove Contact', 'Are you sure you want to remove this trusted contact?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: performToggle }
+      ]);
+    }
+  };
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);
@@ -160,54 +249,76 @@ export default function MyCallerScreen({ navigation }) {
   }
 
   return (
-    <View style={s.container}>
+    <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={s.container}>
+      {/* ── Premium Gradient Header ── */}
+      <View style={s.headerWrap}>
+        <LinearGradient 
+          colors={['#4338CA', '#38BDF8']} 
+          start={{ x: 0, y: 0 }} 
+          end={{ x: 1, y: 1 }} 
+          style={s.headerGradient}
+        >
+          {/* Decorative Shapes */}
+          <View style={[s.decorativeCircle, { top: -60, right: -40, width: 250, height: 250, backgroundColor: 'rgba(255, 255, 255, 0.12)' }]} />
+          <View style={[s.decorativeCircle, { top: 60, left: -80, width: 200, height: 200, backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
+          <View style={[s.decorativeCircle, { bottom: -80, right: 40, width: 160, height: 160, backgroundColor: 'rgba(255, 255, 255, 0.05)' }]} />
 
-      {/* ── Header ── */}
-      <LinearGradient
-        colors={['#0A2463', '#1E5FAD']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={s.header}
-      >
-        <View style={[s.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
-        <View style={[s.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
-        <Text style={s.headerLabel}>CareCo</Text>
-        <Text style={s.headerTitle}>Care Team</Text>
-      </LinearGradient>
+          <Animated.View style={[s.headerContent, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-15, 0] }) }] }]}>
+            <View style={s.mainHeaderRow}>
+              <View style={s.headerLeft}>
+                <Text style={s.headerLabel}>SUPPORT</Text>
+                <Text style={s.headerTitle}>Care Team</Text>
+              </View>
+              <View style={s.headerRight}>
+                <TouchableOpacity 
+                  style={s.headerRightBtn}
+                  onPress={() => navigation.navigate('Notifications')}
+                >
+                  <Bell size={20} color={C.primary} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </LinearGradient>
+      </View>
 
       <ScrollView
         style={s.body}
         contentContainerStyle={s.bodyContent}
         showsVerticalScrollIndicator={false}
       >
-        {caller ? (
-          <Animated.View style={{
-            opacity: cardAnim,
-            transform: [{
-              translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }),
-            }],
-          }}>
-            <Pressable onPress={openModal} style={({ pressed }) => [s.callerCard, pressed && s.callerCardPressed]}>
-
+        {/* CALLERS SECTION */}
+        <View style={[s.section, { marginTop: -40 }]}>
+          <Text style={s.sectionHeader}>YOUR CALLER</Text>
+          {caller ? (
+            <Animated.View style={{
+              opacity: cardAnim,
+              transform: [{
+                translateY: cardAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }),
+              }],
+            }}>
+              <Pressable onPress={openModal} style={({ pressed }) => [s.callerCard, pressed && s.callerCardPressed]}>
               {/* Avatar + name row */}
               <View style={s.profileRow}>
                 <View style={s.avatarWrap}>
-                  <View style={s.avatar}>
+                  <LinearGradient colors={['#3B82F6', '#1E40AF']} style={s.avatar}>
                     <Text style={s.avatarLetter}>{caller.name?.charAt(0)}</Text>
-                  </View>
+                  </LinearGradient>
                   <View style={s.onlineDot} />
                 </View>
                 <View style={s.profileInfo}>
                   <Text style={s.callerName}>{caller.name}</Text>
                   <View style={s.metaRow}>
-                    <View style={s.idChip}>
-                      <Text style={s.idChipText}>{caller.employee_id}</Text>
-                    </View>
+                    <Text style={s.idChipText}>ID: {caller.employee_id}</Text>
+                    <View style={s.dotDivider} />
                     <View style={s.onlinePill}>
                       <View style={s.onlinePillDot} />
-                      <Text style={s.onlinePillText}>Online Now</Text>
+                      <Text style={s.onlinePillText}>Online</Text>
                     </View>
                   </View>
+                </View>
+                <View style={s.chevronWrap}>
+                  <ChevronRight size={20} color={C.light} strokeWidth={2.5} />
                 </View>
               </View>
 
@@ -220,30 +331,90 @@ export default function MyCallerScreen({ navigation }) {
                     caller?.phone && Linking.openURL(`tel:${caller.phone}`);
                   }}
                 >
-                  {({ pressed }) => (
-                    <View style={s.btnCallGrad}>
-                      <Phone size={15} color="#FFF" strokeWidth={2.5} />
-                      <Text style={s.btnCallText}>Call Now</Text>
-                    </View>
-                  )}
+                  <Phone size={16} color="#FFF" strokeWidth={2.5} />
+                  <Text style={s.btnCallText}>Call Now</Text>
                 </Pressable>
                 <Pressable
                   style={({ pressed }) => [s.btnFlag, pressed && s.btnFlagPressed]}
                   onPress={(e) => { e.stopPropagation?.(); handleFlagIssue(); }}
                 >
-                  <Flag size={15} color={C.danger} strokeWidth={2.2} />
+                  <Flag size={16} color={C.danger} strokeWidth={2.2} />
                   <Text style={s.btnFlagText}>{flagging ? 'Flagging…' : 'Flag Issue'}</Text>
                 </Pressable>
               </View>
-
             </Pressable>
-          </Animated.View>
-        ) : (
-          <View style={s.emptyWrap}>
-            <Text style={s.emptyTitle}>No Caller Assigned</Text>
-            <Text style={s.emptyBody}>Your care team caller will appear here once assigned.</Text>
+            </Animated.View>
+          ) : (
+            <View style={s.emptyCard}>
+              <View style={s.emptyIconWrap}>
+                <PhoneIncoming size={32} color={C.light} strokeWidth={1.5} />
+              </View>
+              <Text style={s.emptyTitle}>No Caller Assigned</Text>
+              <Text style={s.emptyBody}>Your care team caller will appear here once assigned.</Text>
+            </View>
+          )}
+        </View>
+
+        {/* MANAGER SECTION */}
+        <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+          <View style={s.section}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionHeaderBase}>MANAGER</Text>
+            </View>
+            <View style={s.emptyCard}>
+              <View style={s.emptyIconWrap}>
+                <ShieldCheck size={32} color={C.light} strokeWidth={1.5} />
+              </View>
+              <Text style={s.emptyTitle}>No Manager Assigned</Text>
+              <Text style={s.emptyBody}>A manager will be assigned if additional support is required.</Text>
+            </View>
           </View>
-        )}
+        </Animated.View>
+
+        {/* TRUSTED CONTACTS SECTION */}
+        <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+          <View style={s.section}>
+            <View style={s.sectionHeaderRow}>
+              <Text style={s.sectionHeaderBase}>TRUSTED CONTACTS</Text>
+              <Pressable style={s.addBtnText} onPress={() => openContactModal()}>
+                <Plus size={14} color={C.primary} strokeWidth={2.5} />
+                <Text style={s.addBtnLabel}>Add</Text>
+              </Pressable>
+            </View>
+            
+            {contacts.length === 0 ? (
+              <View style={s.emptyCard}>
+                <View style={s.emptyIconWrap}>
+                  <Users size={32} color={C.light} strokeWidth={1.5} />
+                </View>
+                <Text style={s.emptyTitle}>No Contacts Added</Text>
+                <Text style={s.emptyBody}>Add trusted family members or friends for emergencies.</Text>
+              </View>
+            ) : (
+              contacts.map((contact, idx) => {
+                const colorTheme = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+                return (
+                <View key={contact._id} style={s.contactCard}>
+                  <View style={[s.contactAvatar, { backgroundColor: colorTheme.bg }]}>
+                    <Text style={[s.contactAvatarTxt, { color: colorTheme.text }]}>{contact.name.charAt(0)}</Text>
+                  </View>
+                  <View style={s.contactInfo}>
+                    <Text style={s.contactName}>{contact.name}</Text>
+                    <Text style={s.contactSub}>{contact.relation ? `${contact.relation} • ` : ''}{contact.phone}</Text>
+                  </View>
+                  <View style={s.contactActions}>
+                    <Pressable style={s.iconActionBtn} onPress={() => openContactModal(contact)}>
+                      <Edit2 size={16} color={C.light} />
+                    </Pressable>
+                    <Pressable style={s.iconActionBtn} onPress={() => confirmRemoveContact(contact._id)}>
+                      <X size={18} color={C.danger} />
+                    </Pressable>
+                  </View>
+                </View>
+              )})
+            )}
+          </View>
+        </Animated.View>
       </ScrollView>
 
       {/* ── Modal ── */}
@@ -258,6 +429,21 @@ export default function MyCallerScreen({ navigation }) {
         </TouchableWithoutFeedback>
 
         <View style={s.modalWrapper}>
+          {/* Floating Close Button */}
+          <Animated.View style={[
+            s.floatingCloseWrap,
+            {
+              opacity: modalAnim,
+              transform: [{
+                translateY: modalAnim.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }),
+              }],
+            }
+          ]}>
+            <TouchableOpacity onPress={closeModal} style={s.floatingCloseBtn}>
+              <X size={20} color="#0F172A" strokeWidth={3} />
+            </TouchableOpacity>
+          </Animated.View>
+
           <Animated.View style={[
             s.modalSheet,
             {
@@ -266,103 +452,79 @@ export default function MyCallerScreen({ navigation }) {
               }],
             },
           ]}>
-
             {/* Modal handle */}
-            <View style={s.modalHandle} />
-
-            {/* Modal Header */}
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>CARE CONNECT</Text>
-              <TouchableOpacity onPress={closeModal} style={s.closeBtn}>
-                <X size={16} color={C.muted} strokeWidth={2.5} />
-              </TouchableOpacity>
+            <View style={s.modalHandleWrap}>
+              <View style={s.modalHandle} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalBody}>
-
-              {/* Profile row */}
-              <View style={s.modalCallerRow}>
+              {/* Profile Header */}
+              <View style={s.modalHeaderRow}>
+                <View style={s.modalProfileInfo}>
+                  <Text style={s.modalCallerName}>{caller?.name}</Text>
+                  <Text style={s.modalIdText}>Support ID: {caller?.employee_id}</Text>
+                </View>
                 <View style={s.avatarWrapLg}>
-                  <LinearGradient colors={['#1E5FAD', '#060D1F']} style={s.avatarLg}>
+                  <LinearGradient colors={['#3B82F6', '#1E40AF']} style={s.avatarLg}>
                     <Text style={s.avatarLetterLg}>{caller?.name?.charAt(0)}</Text>
                   </LinearGradient>
                   <View style={s.onlineDotLg} />
                 </View>
-                <View style={s.profileInfo}>
-                  <Text style={s.modalCallerName}>{caller?.name}</Text>
-                  <View style={s.metaRow}>
-                    <View style={s.idChip}>
-                      <Text style={s.idChipText}>{caller?.employee_id}</Text>
-                    </View>
-                    <View style={s.onlinePill}>
-                      <View style={s.onlinePillDot} />
-                      <Text style={s.onlinePillText}>Online Now</Text>
-                    </View>
-                  </View>
-                </View>
               </View>
 
-              {/* Stats strip */}
-              <View style={s.statsStrip}>
-                <View style={s.statItem}>
-                  <View style={s.statIconWrap}>
-                    <Clock size={16} color="#3B82F6" strokeWidth={2.5} />
-                  </View>
-                  <Text style={s.statVal}>{caller?.experience_years} yrs</Text>
-                  <Text style={s.statLbl}>Experience</Text>
-                </View>
-                <View style={s.statDivider} />
-                <View style={s.statItem}>
-                  <View style={s.statIconWrap}>
-                    <Globe size={16} color="#3B82F6" strokeWidth={2.5} />
-                  </View>
-                  <Text style={[s.statVal, { fontSize: 11 }]} numberOfLines={1}>
-                    {caller?.languages_spoken?.slice(0, 3).join(' · ')}
-                  </Text>
-                  <Text style={s.statLbl}>Languages</Text>
-                </View>
-                <View style={s.statDivider} />
-                <View style={s.statItem}>
-                  <View style={s.statIconWrap}>
-                    <ShieldCheck size={16} color="#3B82F6" strokeWidth={2.5} />
-                  </View>
-                  <Text style={s.statVal}>Certified</Text>
-                  <Text style={s.statLbl}>Status</Text>
-                </View>
-              </View>
-
-              {/* Action buttons */}
-              <View style={s.actionRow}>
+              {/* Action buttons (Modal) */}
+              <View style={s.modalActionRow}>
                 <Pressable
-                  style={({ pressed }) => [s.btnCall, pressed && s.btnCallPressed]}
+                  style={({ pressed }) => [s.btnCallLg, pressed && s.btnCallPressedLg]}
                   onPress={() => caller?.phone && Linking.openURL(`tel:${caller.phone}`)}
                 >
-                  {({ pressed }) => (
-                    <View style={s.btnCallGrad}>
-                      <Phone size={15} color="#FFF" strokeWidth={2.5} />
-                      <Text style={s.btnCallText}>Call Now</Text>
-                    </View>
-                  )}
+                  <Phone size={18} color="#FFF" strokeWidth={2.5} />
+                  <Text style={s.btnCallTextLg}>Call Now</Text>
                 </Pressable>
                 <Pressable
-                  style={({ pressed }) => [s.btnFlag, pressed && s.btnFlagPressed]}
+                  style={({ pressed }) => [s.iconBtn, pressed && s.iconBtnPressed]}
                   onPress={handleFlagIssue}
                 >
-                  <Flag size={15} color={C.danger} strokeWidth={2.2} />
-                  <Text style={s.btnFlagText}>{flagging ? 'Flagging…' : 'Flag Issue'}</Text>
+                  <Flag size={20} color={C.danger} strokeWidth={2.5} />
                 </Pressable>
+              </View>
+
+              {/* Bento Box Stats */}
+              <View style={s.bentoGrid}>
+                <View style={[s.bentoBox, { backgroundColor: '#EFF6FF' }]}>
+                  <View style={[s.bentoIcon, { backgroundColor: '#DBEAFE' }]}>
+                    <Clock size={16} color="#2563EB" strokeWidth={2.5} />
+                  </View>
+                  <Text style={s.bentoVal}>{caller?.experience_years} yrs</Text>
+                  <Text style={s.bentoLbl}>Experience</Text>
+                </View>
+                <View style={[s.bentoBox, { backgroundColor: '#F5F3FF' }]}>
+                  <View style={[s.bentoIcon, { backgroundColor: '#EDE9FE' }]}>
+                    <Globe size={16} color="#7C3AED" strokeWidth={2.5} />
+                  </View>
+                  <Text style={s.bentoVal} numberOfLines={1}>
+                    {(caller?.languages_spoken?.length || 0) > 0 ? caller.languages_spoken[0] : 'English'}
+                  </Text>
+                  <Text style={s.bentoLbl}>Primary Lang</Text>
+                </View>
+                <View style={[s.bentoBox, { backgroundColor: '#ECFDF5' }]}>
+                  <View style={[s.bentoIcon, { backgroundColor: '#D1FAE5' }]}>
+                    <ShieldCheck size={16} color="#059669" strokeWidth={2.5} />
+                  </View>
+                  <Text style={s.bentoVal}>Certified</Text>
+                  <Text style={s.bentoLbl}>Status</Text>
+                </View>
               </View>
 
               {/* Call History */}
               <View style={s.sectionHead}>
-                <View style={s.sectionBar} />
-                <Text style={s.sectionTitle}>Call History</Text>
+                <Text style={s.sectionTitle}>Recent Calls</Text>
+                <Pressable style={s.seeAllWrap}><Text style={s.seeAllText}>See all</Text></Pressable>
               </View>
 
               {calls.length === 0 ? (
-                <View style={s.emptyWrap}>
-                  <Text style={s.emptyTitle}>No Calls Yet</Text>
-                  <Text style={s.emptyBody}>Your call history will appear here.</Text>
+                <View style={s.emptyHistoryWrap}>
+                  <Text style={s.emptyBody}>No calls recorded yet.</Text>
                 </View>
               ) : (
                 calls.map((call) => {
@@ -370,38 +532,95 @@ export default function MyCallerScreen({ navigation }) {
                   const Icon = cfg.Icon;
                   const duration = formatDuration(call.call_duration_seconds);
                   return (
-                    <View key={call._id} style={[
-                      s.historyCard,
-                      { borderLeftColor: cfg.color },
-                      call.status === 'missed' && s.historyCardMissed,
-                    ]}>
-                      <View style={[s.historyIconBox, { backgroundColor: cfg.bg }]}>
-                        <Icon size={15} color={cfg.color} strokeWidth={2.2} />
+                    <View key={call._id} style={s.historyBentoCard}>
+                      <View style={[s.historyIconBg, { backgroundColor: cfg.bg }]}>
+                        <Icon size={16} color={cfg.color} strokeWidth={2.5} />
                       </View>
                       <View style={s.historyBody}>
-                        <View style={s.historyTop}>
-                          <Text style={s.historyDate}>{formatDate(call.call_date)}</Text>
-                          <View style={[s.badge, { backgroundColor: duration ? '#EEF2FF' : cfg.bg }]}>
-                            <Text style={[s.badgeText, { color: duration ? '#4338CA' : cfg.color }]}>
-                              {duration || cfg.label}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={s.historyNote} numberOfLines={2}>
+                        <Text style={s.historyDate}>{formatDate(call.call_date)}</Text>
+                        <Text style={s.historyNote} numberOfLines={1}>
                           {call.ai_summary || 'Routine check-in call.'}
+                        </Text>
+                      </View>
+                      <View style={[s.badgeBox, { backgroundColor: duration ? '#EEF2FF' : cfg.bg }]}>
+                        <Text style={[s.badgeText, { color: duration ? '#4338CA' : cfg.color }]}>
+                          {duration || cfg.label}
                         </Text>
                       </View>
                     </View>
                   );
                 })
               )}
-
             </ScrollView>
           </Animated.View>
         </View>
       </Modal>
 
-    </View>
+      {/* ── Contact Form Modal ── */}
+      <Modal
+        visible={contactModal}
+        transparent
+        animationType="none"
+        onRequestClose={closeContactModal}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableWithoutFeedback onPress={closeContactModal}>
+            <Animated.View style={[s.backdrop, { opacity: backdropAnim }]} />
+          </TouchableWithoutFeedback>
+
+          <View style={s.modalWrapper}>
+            <Animated.View style={[
+              s.modalSheet,
+              {
+                height: 'auto',
+                maxHeight: '90%',
+                transform: [{
+                  translateY: contactModalAnim.interpolate({ inputRange: [0, 1], outputRange: [800, 0] }),
+                }],
+              },
+            ]}>
+              <View style={s.modalHandleWrap}>
+                <View style={s.modalHandle} />
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalBody}>
+                <View style={[s.modalHeaderRow, { marginBottom: 16 }]}>
+                  <Text style={[s.modalCallerName, { fontSize: 22 }]}>{editingContact ? 'Edit Contact' : 'Add Contact'}</Text>
+                  <Pressable onPress={closeContactModal} style={s.modalCloseBtn}>
+                    <X size={22} color="#64748B" />
+                  </Pressable>
+                </View>
+
+                <View style={s.formGroup}>
+                  <Text style={s.formLabel}>Full Name *</Text>
+                  <TextInput style={s.formInput} placeholder="e.g. Ramesh Kumar" placeholderTextColor="#94A3B8" value={contactForm.name} onChangeText={(t) => setContactForm({ ...contactForm, name: t })} />
+                </View>
+                <View style={s.formGroup}>
+                  <Text style={s.formLabel}>Phone Number *</Text>
+                  <TextInput style={s.formInput} placeholder="+919876543210" placeholderTextColor="#94A3B8" keyboardType="phone-pad" value={contactForm.phone} onChangeText={(t) => setContactForm({ ...contactForm, phone: t })} />
+                </View>
+                <View style={s.formGroup}>
+                  <Text style={s.formLabel}>Relationship</Text>
+                  <TextInput style={s.formInput} placeholder="e.g. Son, Daughter, Friend" placeholderTextColor="#94A3B8" value={contactForm.relation} onChangeText={(t) => setContactForm({ ...contactForm, relation: t })} />
+                </View>
+                <View style={s.formGroup}>
+                  <Text style={s.formLabel}>Email (Optional)</Text>
+                  <TextInput style={s.formInput} placeholder="Optional" placeholderTextColor="#94A3B8" keyboardType="email-address" value={contactForm.email} onChangeText={(t) => setContactForm({ ...contactForm, email: t })} />
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [s.btnCallLg, { marginTop: 10, backgroundColor: C.primary }, pressed && s.btnCallPressedLg]}
+                  onPress={saveContact}
+                  disabled={isSavingContact}
+                >
+                  {isSavingContact ? <ActivityIndicator color="#FFF" /> : <Text style={s.btnCallTextLg}>Save Contact</Text>}
+                </Pressable>
+              </ScrollView>
+            </Animated.View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </LinearGradient>
   );
 }
 
@@ -415,245 +634,279 @@ const FONT = {
 };
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' }, // New light page bg for premium look
 
-  // ── Header ──
-  header: {
-    height: 140,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // ── Header (Premium Gradient Design) ──
+  headerWrap: { zIndex: 10 },
+  headerGradient: {
     paddingTop: Platform.OS === 'ios' ? 70 : 50,
-    position: 'relative',
+    paddingBottom: 48, 
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 40, 
+    borderBottomRightRadius: 40,
+    shadowColor: '#4338CA', 
+    shadowOffset: { width: 0, height: 16 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 24, 
+    elevation: 8,
     overflow: 'hidden',
   },
-  decorativeCircle: {
-    position: 'absolute',
-    width: 140, height: 140, borderRadius: 70,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  decorativeCircle: { position: 'absolute', borderRadius: 100 },
+  headerContent: { zIndex: 2 },
+  mainHeaderRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginTop: 4
   },
+  headerLeft: { flex: 1 },
   headerLabel: {
     fontSize: 12, ...FONT.bold,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 1, marginBottom: 4,
+    color: 'rgba(255, 255, 255, 0.7)',
+    letterSpacing: 1.5, marginBottom: 2,
   },
-  headerTitle: { fontSize: 20, ...FONT.heavy, color: '#FFFFFF' },
+  headerTitle: { fontSize: 26, ...FONT.heavy, color: '#FFFFFF', letterSpacing: -0.5 },
+  headerRight: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: 12 
+  },
+  headerRightBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#1A202C', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 10, elevation: 2,
+  },
 
   // ── Body ──
   body: { flex: 1 },
-  bodyContent: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 120 },
+  section: { marginBottom: 24, width: '100%' },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingHorizontal: 4 },
+  sectionHeader: { fontSize: 13, ...FONT.bold, color: '#94A3B8', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 16, marginLeft: 4 },
+  sectionHeaderBase: { fontSize: 13, ...FONT.bold, color: '#94A3B8', letterSpacing: 1.5, textTransform: 'uppercase' },
+  addBtnText: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  addBtnLabel: { fontSize: 12, ...FONT.bold, color: '#3B82F6' },
+  bodyContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 120 },
+
+  // ── Contact Card ──
+  contactCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center',
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 4,
+  },
+  contactAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  contactAvatarTxt: { fontSize: 20, ...FONT.bold },
+  contactInfo: { flex: 1 },
+  contactName: { fontSize: 16, ...FONT.bold, color: '#0F172A', marginBottom: 4 },
+  contactSub: { fontSize: 13, ...FONT.medium, color: '#64748B' },
+  contactActions: { flexDirection: 'row', gap: 6 },
+  iconActionBtn: { padding: 12, backgroundColor: '#F8FAFC', borderRadius: 12 },
 
   // ── Caller Card ──
   callerCard: {
-    backgroundColor: C.cardBg,
-    borderRadius: 20,
-    marginBottom: 20,
-    padding: 20,
-    shadowColor: '#0A2463',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05, shadowRadius: 12, elevation: 3,
-    borderWidth: 1, borderColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 36, // Squircle style
+    marginBottom: 24,
+    padding: 24,
+    shadowColor: '#6366F1', // Tinted shadow
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.08, shadowRadius: 32, elevation: 8,
   },
-  callerCardPressed: {
-    opacity: 0.98,
-    transform: [{ scale: 0.99 }],
-  },
+  callerCardPressed: { opacity: 0.96, transform: [{ scale: 0.98 }] },
 
   profileRow: {
     flexDirection: 'row', alignItems: 'center',
-    marginBottom: 22,
+    marginBottom: 28,
   },
-  avatarWrap: { position: 'relative', marginRight: 16 },
-  avatar: { width: 64, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1E5FAD' },
-  avatarLetter: { fontSize: 26, ...FONT.semibold, color: '#FFF' },
+  avatarWrap: { position: 'relative', marginRight: 18 },
+  avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 32, ...FONT.heavy, color: '#FFF' },
   onlineDot: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 14, height: 14, borderRadius: 7,
-    backgroundColor: '#10B981', borderWidth: 2.5, borderColor: C.cardBg,
+    position: 'absolute', bottom: 2, right: 2,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#10B981', borderWidth: 4, borderColor: '#FFF',
   },
   profileInfo: { flex: 1 },
   callerName: {
     fontSize: 22,
-    ...FONT.semibold,
-    color: '#0A0F1E',
+    ...FONT.bold,
+    color: '#0F172A',
     marginBottom: 6,
-    letterSpacing: -0.3,
+    letterSpacing: -0.5,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  idChip: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4,
-  },
-  idChipText: {
-    fontSize: 11,
-    ...FONT.semibold,
-    color: '#1D4ED8',
-    fontFamily: Platform.OS === 'ios' ? 'Inter_700Bold' : 'monospace',
-    letterSpacing: 0.5,
-  },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  idChipText: { fontSize: 13, ...FONT.medium, color: '#64748B' },
+  dotDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1', marginHorizontal: 8 },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   onlinePillDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
-  onlinePillText: { fontSize: 13, ...FONT.medium, color: '#059669' },
+  onlinePillText: { fontSize: 13, ...FONT.medium, color: '#10B981' },
+  chevronWrap: {
+    width: 32, height: 32, borderRadius: 16, backgroundColor: '#F8FAFC',
+    alignItems: 'center', justifyContent: 'center', marginLeft: 10,
+  },
 
   // ── Action buttons ──
   actionRow: {
     flexDirection: 'row', gap: 12,
   },
   btnCall: {
-    flex: 1.2, borderRadius: 25, overflow: 'hidden',
-    shadowColor: '#0A0F1E',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+    flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 100, // True pill
+    height: 56, backgroundColor: '#6366F1', // Indigo
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
   },
-  btnCallPressed: { opacity: 0.85 },
-  btnCallGrad: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, height: 50, borderRadius: 25,
-    backgroundColor: '#0F172A',
-  },
-  btnCallText: { fontSize: 16, ...FONT.semibold, color: '#FFF', letterSpacing: 0.2 },
+  btnCallPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  btnCallText: { fontSize: 16, ...FONT.bold, color: '#FFF' },
 
   btnFlag: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, height: 50, borderRadius: 25,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5, borderColor: '#E2E8F0',
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 100, height: 56, backgroundColor: '#FFF',
+    borderWidth: 2, borderColor: '#FFE4E6', // Danger padding
   },
-  btnFlagPressed: { backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' },
-  btnFlagText: { fontSize: 14, ...FONT.semibold, color: '#EF4444' },
+  btnFlagPressed: { backgroundColor: '#FEF2F2' },
+  btnFlagText: { fontSize: 15, ...FONT.bold, color: '#F43F5E' },
 
-  // ── Empty state ──
-  emptyWrap: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 17, ...FONT.semibold, color: '#1E293B', marginBottom: 6 },
-  emptyBody: { fontSize: 14, ...FONT.regular, color: '#94A3B8', textAlign: 'center', lineHeight: 20 },
-
-  // ── Upgrade state ──
+  // ── Empty / Upgrade state ──
+  emptyWrap: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 20 },
+  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 36, padding: 32, alignItems: 'center', shadowColor: '#64748B', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.05, shadowRadius: 24, elevation: 4 },
+  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 20, ...FONT.bold, color: '#0F172A', marginBottom: 8, letterSpacing: -0.3 },
+  emptyBody: { fontSize: 15, ...FONT.medium, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  
   upgradeIconWrap: {
-    width: 72, height: 72, borderRadius: 24,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 20,
+    width: 80, height: 80, borderRadius: 40, backgroundColor: '#EEF2FF',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 24,
   },
-  upgradeTitle: { fontSize: 22, ...FONT.semibold, color: '#0A0F1E', marginBottom: 10, letterSpacing: -0.3 },
-  upgradeBody: { fontSize: 15, ...FONT.regular, color: '#64748B', textAlign: 'center', lineHeight: 23 },
+  upgradeTitle: { fontSize: 24, ...FONT.bold, color: '#0F172A', marginBottom: 12, letterSpacing: -0.5 },
+  upgradeBody: { fontSize: 16, ...FONT.regular, color: '#64748B', textAlign: 'center', lineHeight: 24 },
 
   // ── Modal ──
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(5,10,25,0.6)',
+    backgroundColor: 'rgba(15,23,42,0.4)',
   },
   modalWrapper: {
-    position: 'absolute',
-    top: 0, bottom: 0, left: 0, right: 0,
+    position: 'absolute', top: 0, bottom: 0, left: 0, right: 0,
     justifyContent: 'flex-end',
   },
+  
+  // Floating Close Button
+  floatingCloseWrap: {
+    alignItems: 'flex-end',
+    paddingRight: 24,
+    marginBottom: 16,
+  },
+  floatingCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
+  },
+
   modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
-    height: '95%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.15, shadowRadius: 24, elevation: 24,
+    backgroundColor: '#F9FAFB',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    height: '90%',
+    shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.1, shadowRadius: 30, elevation: 20,
   },
-  modalHandle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: '#CBD5E1',
-    alignSelf: 'center',
-    marginTop: 12, marginBottom: 4,
-  },
-  modalHeader: {
+  modalHandleWrap: { width: '100%', alignItems: 'center', paddingVertical: 14 },
+  modalHandle: { width: 48, height: 5, borderRadius: 3, backgroundColor: '#CBD5E1' },
+  
+  modalBody: { paddingHorizontal: 24, paddingTop: 10, paddingBottom: 60 },
+  
+  // ── Modal Profile Area ──
+  modalHeaderRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: '#EFF2F7',
+    marginBottom: 24,
   },
-  modalTitle: {
-    fontSize: 10,
-    ...FONT.medium,
-    color: '#94A3B8',
-    letterSpacing: 2.5,
-    textTransform: 'uppercase',
-  },
-  closeBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#EFF2F7',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  modalBody: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 52 },
-  modalCallerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 22 },
-
-  avatarWrapLg: { position: 'relative', marginRight: 16 },
-  avatarLg: { width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  avatarLetterLg: { fontSize: 30, ...FONT.semibold, color: '#FFF' },
+  modalProfileInfo: { flex: 1, paddingRight: 16 },
+  modalCallerName: { fontSize: 28, ...FONT.heavy, color: '#0F172A', marginBottom: 6, letterSpacing: -0.5 },
+  modalIdText: { fontSize: 14, ...FONT.medium, color: '#64748B' },
+  
+  avatarWrapLg: { position: 'relative' },
+  avatarLg: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  avatarLetterLg: { fontSize: 32, ...FONT.bold, color: '#FFF' },
   onlineDotLg: {
-    position: 'absolute', bottom: 1, right: 1,
-    width: 15, height: 15, borderRadius: 8,
-    backgroundColor: '#10B981', borderWidth: 3, borderColor: '#F8FAFC',
-  },
-  modalCallerName: {
-    fontSize: 22,
-    ...FONT.semibold,
-    color: '#0A0F1E',
-    marginBottom: 7,
-    letterSpacing: -0.5,
+    position: 'absolute', bottom: 4, right: 4,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#10B981', borderWidth: 3, borderColor: '#F9FAFB',
   },
 
-  // ── Stats strip ──
-  statsStrip: {
-    flexDirection: 'row', alignItems: 'center',
-    borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#F1F5F9',
-    paddingVertical: 18, marginBottom: 20, marginTop: 4,
+  // ── Modal Actions ──
+  modalActionRow: { flexDirection: 'row', gap: 12, marginBottom: 32 },
+  btnCallLg: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    borderRadius: 100, height: 64, backgroundColor: '#6366F1',
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 6 },
-  statIconWrap: {
-    width: 36, height: 36, borderRadius: 12,
-    backgroundColor: '#F0F9FF',
+  btnCallPressedLg: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  btnCallTextLg: { fontSize: 17, ...FONT.bold, color: '#FFF' },
+  iconBtn: {
+    width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFF',
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#FFE4E6',
   },
-  statVal: { fontSize: 13, ...FONT.semibold, color: '#1E293B', textAlign: 'center' },
-  statLbl: {
-    fontSize: 9,
-    ...FONT.semibold,
-    color: '#94A3B8',
-    letterSpacing: 1, textTransform: 'uppercase',
-  },
-  statDivider: { width: 1, height: 40, backgroundColor: '#EFF2F7' },
+  iconBtnPressed: { backgroundColor: '#FEF2F2', transform: [{ scale: 0.95 }] },
 
-  // ── Section header ──
+  // ── Bento Box Stats ──
+  bentoGrid: { flexDirection: 'row', gap: 12, marginBottom: 32 },
+  bentoBox: {
+    flex: 1, borderRadius: 28, padding: 20, alignItems: 'center',
+    backgroundColor: '#FFF',
+    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 4,
+  },
+  bentoIcon: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 16,
+  },
+  bentoVal: { fontSize: 18, ...FONT.heavy, color: '#0F172A', marginBottom: 6 },
+  bentoLbl: { fontSize: 12, ...FONT.semibold, color: '#64748B' },
+
+  // ── Section Header ──
   sectionHead: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 9, marginBottom: 14, marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  sectionBar: { width: 3, height: 14, backgroundColor: '#3B82F6', borderRadius: 2 },
-  sectionTitle: {
-    fontSize: 10,
-    ...FONT.semibold,
-    color: '#94A3B8',
-    letterSpacing: 1.8, textTransform: 'uppercase',
-  },
+  sectionTitle: { fontSize: 18, ...FONT.heavy, color: '#0F172A', letterSpacing: -0.3 },
+  seeAllWrap: { padding: 4 },
+  seeAllText: { fontSize: 14, ...FONT.semibold, color: '#3B82F6' },
 
-  historyCard: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    backgroundColor: '#FFF', borderRadius: 14,
-    padding: 14, marginBottom: 10,
-    shadowColor: '#0A2463', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-    borderWidth: 1, borderColor: '#EFF2F7',
-    borderLeftWidth: 3,
+  // ── Call History Bento ──
+  historyBentoCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#FFF', borderRadius: 24,
+    padding: 16, marginBottom: 12,
+    shadowColor: '#1A202C', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03, shadowRadius: 12, elevation: 2,
   },
-  historyCardMissed: { backgroundColor: '#FFF8F8', borderColor: '#FECACA' },
-  historyIconBox: {
-    width: 40, height: 40, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  historyIconBg: {
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+    marginRight: 14,
   },
-  historyBody: { flex: 1 },
-  historyTop: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 4,
+  historyBody: { flex: 1, paddingRight: 10 },
+  historyDate: { fontSize: 14, ...FONT.bold, color: '#0F172A', marginBottom: 4 },
+  historyNote: { fontSize: 13, ...FONT.medium, color: '#64748B' },
+  
+  badgeBox: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
+  badgeText: { fontSize: 12, ...FONT.bold },
+  
+  emptyHistoryWrap: {
+    backgroundColor: '#FFF', borderRadius: 24, padding: 32, alignItems: 'center',
   },
-  historyDate: { fontSize: 13, ...FONT.semibold, color: '#1E293B' },
-  badge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  badgeText: { fontSize: 10, ...FONT.medium },
-  historyNote: { fontSize: 12.5, ...FONT.regular, color: '#64748B', lineHeight: 18 },
+  
+  modalCloseBtn: { 
+    width: 44, height: 44, borderRadius: 22, 
+    backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' 
+  },
+  formGroup: { marginBottom: 16 },
+  formLabel: { fontSize: 13, ...FONT.bold, color: '#475569', marginBottom: 6 },
+  formInput: {
+    backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#0F172A', ...FONT.medium,
+  },
 });

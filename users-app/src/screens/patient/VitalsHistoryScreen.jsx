@@ -292,8 +292,7 @@ export default function VitalsHistoryScreen({ navigation }) {
             });
             setIsLogging(false);
             setFormValues({ heart_rate: '', systolic: '', diastolic: '', oxygen_saturation: '', hydration: '' });
-            fetchVitals();
-            fetchHistoryLogs(); // update recent logs too
+            fetchAllData();
         } catch (err) {
             setFormError(handleAxiosError(err));
         } finally {
@@ -764,7 +763,7 @@ export default function VitalsHistoryScreen({ navigation }) {
                 }
                 <Text style={styles.errorText}>{error}</Text>
                 {!isOffline && (
-                    <Pressable style={styles.retryBtn} onPress={fetchVitals}>
+                    <Pressable style={styles.retryBtn} onPress={fetchAllData}>
                         <RefreshCw size={14} color="#FFF" />
                         <Text style={styles.retryText}>Retry</Text>
                     </Pressable>

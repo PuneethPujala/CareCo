@@ -152,6 +152,10 @@ export const apiService = {
         getPreviousCallers: () => api.get('/users/patients/me/previous-callers'),
         getVitals: (params) => api.get('/users/patients/me/vitals', { params }),
         logVitals: (data) => api.post('/users/patients/me/vitals', data),
+        getTrustedContacts: () => api.get('/users/patients/me/trusted-contacts'),
+        addTrustedContact: (data) => api.post('/users/patients/me/trusted-contacts', data),
+        updateTrustedContact: (id, data) => api.put(`/users/patients/me/trusted-contacts/${id}`, data),
+        deleteTrustedContact: (id) => api.delete(`/users/patients/me/trusted-contacts/${id}`),
     },
 
     // Caller-specific endpoints

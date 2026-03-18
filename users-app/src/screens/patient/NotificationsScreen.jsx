@@ -1,119 +1,174 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, PanResponder } from 'react-native';
-import { X, CalendarCheck, PhoneIncoming, Activity, Pill, CheckCheck } from 'lucide-react-native';
-import { colors } from '../../theme';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable } from 'react-native';
+import { Search, Pill, CheckCheck, BellOff, Heart, MessageSquare } from 'lucide-react-native';
 
-const NOTIFICATIONS = [
-    { id: 1, group: 'TODAY', title: 'Upcoming Call', desc: 'Dr. Anjali Desai will call you at 10:30 AM.', time: '10:00 AM', read: false, type: 'call', Icon: PhoneIncoming, bg: '#EFF6FF', color: colors.accent },
-    { id: 2, group: 'TODAY', title: 'Medication Reminder', desc: 'Time to take your Morning Metformin (500mg)', time: '08:00 AM', read: false, type: 'med', Icon: Pill, bg: '#DCFCE7', color: colors.success },
-    { id: 3, group: 'YESTERDAY', title: 'Health Profile Updated', desc: 'Your recent blood test results were added.', time: '04:15 PM', read: true, type: 'health', Icon: Activity, bg: '#F3E8FF', color: '#9333EA' },
-    { id: 4, group: 'THIS WEEK', title: 'Appointment Scheduled', desc: 'Follow-up on Friday, Oct 27 at Clinic.', time: 'Mon', read: true, type: 'appt', Icon: CalendarCheck, bg: '#FEF3C7', color: colors.warning },
-];
-
-const SwipableNotification = ({ item }) => {
-    const pan = useRef(new Animated.ValueXY()).current;
-    const panResponder = useRef(
-        PanResponder.create({
-            onMoveShouldSetPanResponder: () => true,
-            onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
-            onPanResponderRelease: (e, gesture) => {
-                if (gesture.dx < -100) {
-                    Animated.timing(pan, { toValue: { x: -500, y: 0 }, duration: 200, useNativeDriver: false }).start();
-                } else {
-                    Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
-                }
-            }
-        })
-    ).current;
-
-    return (
-        <Animated.View style={[styles.notifCardContainer, { transform: [{ translateX: pan.x }] }]} {...panResponder.panHandlers}>
-            <View style={[styles.notifAccentBar, { backgroundColor: item.read ? '#CBD5E1' : item.color }]} />
-            <View style={[styles.notifInner, item.read && styles.notifOpaque]}>
-                <View style={[styles.notifIconBox, { backgroundColor: item.bg }]}><item.Icon size={18} color={item.color} /></View>
-                <View style={styles.notifContent}>
-                    <View style={styles.notifTitleRow}>
-                        <Text style={[styles.notifTitle, !item.read && styles.unreadText]}>{item.title}</Text>
-                        <Text style={styles.notifTime}>{item.time}</Text>
-                    </View>
-                    <Text style={styles.notifDesc} numberOfLines={2}>{item.desc}</Text>
-                </View>
-                {!item.read && <View style={styles.unreadDot} />}
-            </View>
-        </Animated.View>
-    );
+const C = {
+  primary: '#6366F1',
+  dark: '#0F172A',
+  mid: '#334155',
+  muted: '#94A3B8',
+  light: '#CBD5E1',
+  border: '#F1F5F9',
+  danger: '#F43F5E', // Rose color for the View button from screenshot
+  pageBg: '#FFFFFF',
 };
 
+const FONT = {
+  regular: { fontFamily: 'Inter_400Regular' },
+  medium: { fontFamily: 'Inter_500Medium' },
+  semibold: { fontFamily: 'Inter_600SemiBold' },
+  bold: { fontFamily: 'Inter_700Bold' },
+  heavy: { fontFamily: 'Inter_800ExtraBold' },
+};
+
+const NOTIFICATIONS = [
+  { id: 1, group: 'Last 7 days', name: 'Dr. Anjali Desai', action: 'scheduled a call with you', time: '14:20', isPerson: true, bg: '#EEF2FF', color: '#4338CA' },
+  { id: 2, group: 'Last 7 days', name: 'Hi, Look!', action: 'Four new caregivers are currently in your location', time: '11:00', isPerson: false, Icon: BellOff },
+  { id: 3, group: 'Last 7 days', name: 'Amazing!', action: 'You are in the same radius as 12 people. Go premium to see it!', time: '2:00', isPerson: false, Icon: BellOff },
+  { id: 4, group: 'Last 30 days', name: 'Mentari Cinta', action: 'You both have a shared interest: Anime', time: '21:00', isPerson: true, bg: '#FFE4E6', color: '#E11D48' },
+  { id: 5, group: 'Last 30 days', name: 'Congratulations!', action: 'Your account has been verified.', time: '17:00', isPerson: false, Icon: CheckCheck },
+];
+
 export default function NotificationsScreen({ navigation }) {
-    const groups = ['TODAY', 'YESTERDAY', 'THIS WEEK'];
+  const [activeTab, setActiveTab] = useState('Activity');
+  const groups = ['Last 7 days', 'Last 30 days'];
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Notifications</Text>
-                <Pressable style={styles.closeBtn} onPress={() => navigation.goBack()}>
-                    <X size={24} color="#FFFFFF" strokeWidth={2.5} />
-                </Pressable>
-            </View>
+  return (
+    <View style={s.container}>
+      {/* ── Header ── */}
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Notification</Text>
+        <Pressable style={s.searchBtn} onPress={() => navigation.goBack()}>
+          {/* I'll use the search icon like the image, though it acts as a go-back or search here */}
+          <Search size={22} color={C.dark} strokeWidth={2.5} />
+        </Pressable>
+      </View>
 
-            <View style={styles.subheader}>
-                <Text style={styles.subText}>You have 2 unread notifications</Text>
-                <Pressable style={styles.markReadRow}>
-                    <CheckCheck size={16} color={colors.accent} strokeWidth={2.5} />
-                    <Text style={styles.markReadTxt}>Mark all read</Text>
-                </Pressable>
-            </View>
-
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
-                {groups.map(group => {
-                    const items = NOTIFICATIONS.filter(n => n.group === group);
-                    if (!items.length) return null;
-                    return (
-                        <View key={group} style={styles.groupSection}>
-                            <Text style={styles.groupHeader}>{group}</Text>
-                            {items.map(item => <SwipableNotification key={item.id} item={item} />)}
-                        </View>
-                    );
-                })}
-            </ScrollView>
-
+      {/* ── Segmented Tabs ── */}
+      <View style={s.tabsWrap}>
+        <View style={s.tabsBg}>
+          <Pressable style={[s.tab, activeTab === 'Activity' && s.tabActive]} onPress={() => setActiveTab('Activity')}>
+            <Text style={[s.tabText, activeTab === 'Activity' && s.tabTextActive]}>Activity</Text>
+          </Pressable>
+          <Pressable style={[s.tab, activeTab === 'Archive' && s.tabActive]} onPress={() => setActiveTab('Archive')}>
+            <Text style={[s.tabText, activeTab === 'Archive' && s.tabTextActive]}>Archive</Text>
+          </Pressable>
         </View>
-    );
+      </View>
+
+      {/* ── Body ── */}
+      <ScrollView style={s.list} contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+        {activeTab === 'Archive' ? (
+          <View style={s.emptyWrap}>
+            <View style={s.emptyArtWrap}>
+              <Heart size={40} color={C.light} style={{position:'absolute', top: -10, left: -20, transform: [{rotate: '-15deg'}]}} strokeWidth={1.5} />
+              <MessageSquare size={32} color={C.light} style={{position:'absolute', bottom: 10, right: -20, transform: [{rotate: '10deg'}]}} strokeWidth={1.5} />
+              <BellOff size={80} color={C.dark} strokeWidth={1.5} />
+            </View>
+            <Text style={s.emptyTitle}>No notification yet</Text>
+            <Text style={s.emptyBody}>Return here for updates on activities and new matches.</Text>
+          </View>
+        ) : (
+          groups.map((group) => {
+            const items = NOTIFICATIONS.filter((n) => n.group === group);
+            if (!items.length) return null;
+            return (
+              <View key={group} style={s.groupSection}>
+                <Text style={s.groupHeader}>{group}</Text>
+                {items.map((item) => (
+                  <View key={item.id} style={s.card}>
+                    <View style={s.avatarWrap}>
+                      {item.isPerson ? (
+                        <View style={[s.avatar, { backgroundColor: item.bg }]}>
+                          <Text style={[s.avatarTxt, { color: item.color }]}>{item.name.charAt(0)}</Text>
+                        </View>
+                      ) : (
+                        <View style={s.iconAvatar}>
+                          <item.Icon size={18} color={C.dark} strokeWidth={2.5} />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={s.txtWrap}>
+                      <Text style={s.mainTxt}>
+                        <Text style={s.boldTxt}>{item.name}</Text> {item.action}
+                      </Text>
+                    </View>
+
+                    <View style={s.rightSide}>
+                      <Text style={s.timeTxt}>{item.time}</Text>
+                      <Pressable style={s.viewBtn}>
+                        <Text style={s.viewBtnTxt}>View</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+    </View>
+  );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    header: {
-        backgroundColor: '#0A2463', // Deep Navy
-        paddingTop: Platform.OS === 'ios' ? 56 : 40,
-        paddingBottom: 16, paddingHorizontal: 20,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 4,
-    },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-    closeBtn: { position: 'absolute', right: 20, bottom: 16, zIndex: 10 },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.pageBg },
 
-    subheader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-    subText: { fontSize: 13, color: '#64748B', fontWeight: '500' },
-    markReadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    markReadTxt: { fontSize: 13, fontWeight: '700', color: colors.accent },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 70 : 60,
+    paddingHorizontal: 28,
+    paddingBottom: 20,
+    backgroundColor: C.pageBg,
+  },
+  headerTitle: { fontSize: 28, ...FONT.heavy, color: C.dark, letterSpacing: -0.5 },
+  searchBtn: { 
+    width: 44, height: 44, borderRadius: 22, 
+    borderWidth: 1.5, borderColor: C.border, backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
-    body: { flex: 1 },
-    bodyContent: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 8 },
+  tabsWrap: { paddingHorizontal: 28, marginBottom: 28 },
+  tabsBg: {
+    flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 100, padding: 4,
+  },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 100 },
+  tabActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  tabText: { fontSize: 13, ...FONT.semibold, color: C.muted },
+  tabTextActive: { color: C.dark, ...FONT.bold },
 
-    groupSection: { marginTop: 16 },
-    groupHeader: { fontSize: 12, fontWeight: '700', color: '#94A3B8', letterSpacing: 1, marginBottom: 12, marginLeft: 4 },
+  list: { flex: 1 },
+  listContent: { paddingHorizontal: 28, paddingBottom: 60, minHeight: '100%' },
+  
+  groupSection: { marginBottom: 32 },
+  groupHeader: { fontSize: 13, ...FONT.heavy, color: C.dark, marginBottom: 16 },
 
-    notifCardContainer: { backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 2, elevation: 1 },
-    notifAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
-    notifInner: { flexDirection: 'row', alignItems: 'flex-start', padding: 16, paddingLeft: 20 },
-    notifOpaque: { opacity: 0.65 },
-    notifIconBox: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginTop: 2 },
-    notifContent: { flex: 1, marginRight: 10 },
-    notifTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-    notifTitle: { fontSize: 15, fontWeight: '600', color: '#1A202C', flex: 1, marginRight: 8 },
-    unreadText: { fontWeight: '700', color: '#0F172A' },
-    notifTime: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
-    notifDesc: { fontSize: 13, color: '#64748B', lineHeight: 18 },
-    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.accent, marginTop: 8 },
+  card: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 24 },
+  
+  avatarWrap: { marginRight: 14 },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatarTxt: { fontSize: 18, ...FONT.heavy },
+  iconAvatar: { 
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF',
+    borderWidth: 1.5, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  txtWrap: { flex: 1, marginRight: 12 },
+  mainTxt: { fontSize: 14, ...FONT.regular, color: C.dark, lineHeight: 20 },
+  boldTxt: { ...FONT.bold, color: C.dark },
+
+  rightSide: { alignItems: 'center', paddingLeft: 8 },
+  timeTxt: { fontSize: 11, ...FONT.semibold, color: C.muted, marginBottom: 8 },
+  viewBtn: { 
+    backgroundColor: C.danger, paddingHorizontal: 12, paddingVertical: 5, 
+    borderRadius: 100,
+  },
+  viewBtnTxt: { fontSize: 10, ...FONT.heavy, color: '#FFF' },
+
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, marginTop: 40 },
+  emptyArtWrap: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  emptyTitle: { fontSize: 18, ...FONT.heavy, color: C.dark, marginBottom: 8 },
+  emptyBody: { fontSize: 14, ...FONT.medium, color: C.muted, textAlign: 'center', lineHeight: 22 },
 });

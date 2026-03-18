@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const { createClient } = require('@supabase/supabase-js');
 const Profile = require('../models/Profile');
 const Patient = require('../models/Patient');
+const Caller = require('../models/Caller');
 const Organization = require('../models/Organization');
 const { authenticate } = require('../middleware/authenticate');
 const { authorize } = require('../middleware/authorize');
@@ -451,8 +452,38 @@ router.get('/me', authenticate, async (req, res) => {
 
         let subscriptionStatus = null;
         if (profile.role === 'patient') {
-            const patient = await Patient.findOne({ supabase_uid: req.user.id });
+            let patient = await Patient.findOne({ profile_id: req.profile._id });
+            
+            // Fallback for older patients that might not have a profile_id
+            if (!patient) {
+                patient = await Patient.findOne({ supabase_uid: req.user.id });
+            }
+            
+            // Auto-heal Patient supabase_uid AND profile_id if they don't match
+            if (!patient && req.user.email) {
+                patient = await Patient.findOne({ email: req.user.email.toLowerCase().trim() });
+            }
+            
+            if (patient && (patient.supabase_uid !== req.user.id || !patient.profile_id || patient.profile_id.toString() !== req.profile._id.toString())) {
+                patient.supabase_uid = req.user.id;
+                patient.profile_id = req.profile._id;
+                await patient.save();
+                console.log(`[Auto-Heal] Synced Patient supabase_uid/profile_id for: ${patient.email}`);
+            }
+
             subscriptionStatus = patient?.subscription?.status || 'pending_payment';
+        } else if (profile.role === 'caller') {
+            let caller = await Caller.findOne({ supabase_uid: req.user.id });
+            
+            if (!caller && req.user.email) {
+                caller = await Caller.findOne({ email: req.user.email.toLowerCase().trim() });
+            }
+            
+            if (caller && caller.supabase_uid !== req.user.id) {
+                caller.supabase_uid = req.user.id;
+                await caller.save();
+                console.log(`[Auto-Heal] Synced Caller supabase_uid for: ${caller.email}`);
+            }
         }
 
         res.json({

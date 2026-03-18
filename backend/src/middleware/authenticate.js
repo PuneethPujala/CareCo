@@ -53,10 +53,24 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        const profile = await Profile.findOne({
+        let profile = await Profile.findOne({
             supabaseUid: user.id,
             isActive:    true,
         }).populate('organizationId', 'name city');
+
+        // Auto-heal Supabase UID mismatch if user was recreated in Supabase but their MongoDB profile remains
+        if (!profile && user.email) {
+            const emailProfile = await Profile.findOne({
+                email: user.email.toLowerCase().trim(),
+                isActive: true,
+            });
+            if (emailProfile) {
+                emailProfile.supabaseUid = user.id;
+                await emailProfile.save();
+                profile = await Profile.findById(emailProfile._id).populate('organizationId', 'name city');
+                console.log(`Auto-healed supabaseUid for profile: ${profile.email}`);
+            }
+        }
 
         if (!profile) {
             return res.status(403).json({
@@ -154,10 +168,24 @@ const optionalAuthenticate = async (req, res, next) => {
         const { data: { user }, error } = await supabase.auth.getUser(token);
         if (error || !user) return next();
 
-        const profile = await Profile.findOne({
+        let profile = await Profile.findOne({
             supabaseUid: user.id,
             isActive:    true,
         }).populate('organizationId', 'name city'); // ← fixed: was 'name type'
+
+        // Auto-heal Supabase UID mismatch if user was recreated in Supabase but their MongoDB profile remains
+        if (!profile && user.email) {
+            const emailProfile = await Profile.findOne({
+                email: user.email.toLowerCase().trim(),
+                isActive: true,
+            });
+            if (emailProfile) {
+                emailProfile.supabaseUid = user.id;
+                await emailProfile.save();
+                profile = await Profile.findById(emailProfile._id).populate('organizationId', 'name city');
+                console.log(`[Optional Auth] Auto-healed supabaseUid for profile: ${profile.email}`);
+            }
+        }
 
         if (profile && !profile.isLocked &&
             (profile.role === 'super_admin' || profile.emailVerified)) {
