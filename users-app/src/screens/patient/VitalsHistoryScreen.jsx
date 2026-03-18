@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
     View, Text, StyleSheet, ScrollView, Platform, Pressable,
     ActivityIndicator, TextInput, KeyboardAvoidingView, Dimensions, Animated,
-    useWindowDimensions,
+    useWindowDimensions, Modal,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -59,7 +59,7 @@ const makeChartConfig = (accentColor) => ({
     propsForDots: { r: '5', strokeWidth: '2', stroke: '#FFFFFF' },
     propsForBackgroundLines: { stroke: '#F1F5F9', strokeDasharray: '' },
     style: { borderRadius: 16 },
-    paddingRight: 0,
+    paddingRight: 40,
 });
 
 // ─── Metric definitions ────────────────────────────────────────
@@ -457,7 +457,7 @@ export default function VitalsHistoryScreen({ navigation }) {
     };
 
 
-    const renderLandscapeView = () => {
+    const renderFullscreenChart = () => {
         const def = CHART_DEFS.find(c => c.id === activeMetricId);
         if (!def || !vitals.length) return null;
 
@@ -470,8 +470,6 @@ export default function VitalsHistoryScreen({ navigation }) {
         }).reverse();
 
         const rangeData = rangeMode === 'range' ? getRangeData(def.id) : [];
-        const hasData = mainData.some(v => v > 0) || rangeData.some(d => (d.y || 0) > 0);
-
         const chartConfig = {
             ...makeChartConfig(def.accent),
             fillShadowGradient: def.accent,
@@ -481,75 +479,92 @@ export default function VitalsHistoryScreen({ navigation }) {
             useShadowColorFromDataset: false,
         };
 
-        const w = windowW - 60;
-        const h = windowH - 120;
+        const w = windowW - 40;
+        const h = windowH - 80;
 
         return (
-            <View style={styles.landscapeContainer}>
-                <Pressable style={styles.closeFullscreenBtn} onPress={() => setIsFullscreen(false)}>
-                    <X size={24} color="#1E293B" />
-                </Pressable>
+            <Modal
+                visible={isFullscreen || isLandscape}
+                supportedOrientations={['portrait', 'landscape']}
+                animationType="fade"
+                onRequestClose={() => setIsFullscreen(false)}
+            >
+                <View style={[styles.landscapeContainer, { width: windowW, height: windowH }]}>
+                    <Pressable 
+                        style={styles.closeFullscreenBtn} 
+                        onPress={() => { setIsFullscreen(false); }}
+                        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                    >
+                        <X size={26} color="#1E293B" strokeWidth={2.5} />
+                    </Pressable>
 
-                <View style={styles.landscapeHeader}>
-                    <Text style={styles.landscapeTitle}>{def.title} {rangeMode === 'range' ? 'Trend' : 'Readings'}</Text>
-                    <Text style={styles.landscapeSubtitle}>{vitals.length} logs analyzed</Text>
-                </View>
-                
-                <ChartErrorBoundary>
-                    <View>
-                        <LineChart
-                            data={{
-                                labels: rangeMode === 'range' 
-                                    ? rangeData.map((d, i) => i % Math.ceil(rangeData.length / 12) === 0 ? d.x : "")
-                                    : labels.map((l, i) => i % Math.ceil(labels.length / 10) === 0 ? l : ""),
-                                datasets: rangeMode === 'range' ? [
-                                    { data: rangeData.map(d => d.max || 0), color: () => 'transparent', strokeWidth: 0, withDots: false },
-                                    { data: rangeData.map(d => d.min || 0), color: () => 'transparent', strokeWidth: 0, withDots: false },
-                                    { data: rangeData.map(d => d.y || 0), color: () => def.accent, strokeWidth: 4 },
-                                ] : [
-                                    { data: mainData, color: () => def.accent, strokeWidth: 3 },
-                                    ...(def.extractAlt ? [{ data: vitals.map(v => Number(def.extractAlt(v)) || 0).reverse(), color: () => '#94A3B840', strokeWidth: 2, withDots: false }] : [])
-                                ],
-                                legend: rangeMode === 'range' ? ['Max', 'Min', 'Avg'] : (def.legend || []),
-                            }}
-                            width={w}
-                            height={h}
-                            chartConfig={chartConfig}
-                            bezier={rangeMode === 'range' ? rangeData.length > 1 : mainData.length > 1}
-                            style={styles.landscapeChart}
-                            onDataPointClick={({ x, y, value, index }) => 
-                                showTooltip(x, y, value, rangeMode === 'range' ? rangeData[index].x : labels[index])
-                            }
-                            decorator={() => renderChartInteraction(def)}
-                        />
-                        {tooltipPos.visible && <Pressable style={StyleSheet.absoluteFill} onPress={hideTooltip} />}
-                        
-                        {/* Shaded area for range mode in landscape */}
-                        {rangeMode === 'range' && (
-                            <Svg position="absolute" top={0} left={0} width={w} height={h} pointerEvents="none">
-                                <Path 
-                                    d={(() => {
-                                        const rd = rangeData;
-                                        if (rd.length < 2) return "";
-                                        const xs = w / (rd.length - 1);
-                                        const allV = rd.flatMap(d => [d.min, d.max]).filter(v => v > 0);
-                                        const minV = Math.min(...allV) * 0.9;
-                                        const maxV = Math.max(...allV) * 1.1;
-                                        const r = maxV - minV;
-                                        const gy = (v) => h - ((v - minV) / (r || 1)) * h;
-                                        let pd = `M 0 ${gy(rd[0].max)}`;
-                                        for (let i = 1; i < rd.length; i++) pd += ` L ${i * xs} ${gy(rd[i].max)}`;
-                                        for (let i = rd.length - 1; i >= 0; i--) pd += ` L ${i * xs} ${gy(rd[i].min)}`;
-                                        return pd + ' Z';
-                                    })()}
-                                    fill={def.accent} 
-                                    fillOpacity={0.1} 
-                                />
-                            </Svg>
-                        )}
+                    <View style={styles.landscapeHeader}>
+                        <Text style={styles.landscapeTitle}>{def.title}</Text>
+                        <Text style={styles.landscapeSubtitle}>
+                            {rangeMode === 'range' ? 'Trend Analysis' : "Today's Readings"} ({vitals.length} logs)
+                        </Text>
                     </View>
-                </ChartErrorBoundary>
-            </View>
+                    
+                    <ChartErrorBoundary>
+                        <View style={{ width: w, height: h, alignSelf: 'center' }}>
+                            <LineChart
+                                data={{
+                                    labels: rangeMode === 'range' 
+                                        ? rangeData.map((d, i) => i % Math.ceil(rangeData.length / 12) === 0 ? d.x : "")
+                                        : labels.map((l, i) => i % Math.ceil(labels.length / 10) === 0 ? l : ""),
+                                    datasets: rangeMode === 'range' ? [
+                                        { data: rangeData.map(d => d.max || 0), color: () => 'transparent', strokeWidth: 0, withDots: false },
+                                        { data: rangeData.map(d => d.min || 0), color: () => 'transparent', strokeWidth: 0, withDots: false },
+                                        { data: rangeData.map(d => d.y || 0), color: () => def.accent, strokeWidth: 4 },
+                                    ] : [
+                                        { data: mainData, color: () => def.accent, strokeWidth: 3 },
+                                        ...(def.extractAlt ? [{ data: vitals.map(v => Number(def.extractAlt(v)) || 0).reverse(), color: () => '#94A3B840', strokeWidth: 2, withDots: false }] : [])
+                                    ],
+                                    legend: rangeMode === 'range' ? ['Max', 'Min', 'Avg'] : (def.legend || []),
+                                }}
+                                width={w}
+                                height={h}
+                                chartConfig={chartConfig}
+                                bezier={rangeMode === 'range' ? rangeData.length > 1 : mainData.length > 1}
+                                style={styles.landscapeChart}
+                                onDataPointClick={({ x, y, value, index }) => 
+                                    showTooltip(x, y, value, rangeMode === 'range' ? rangeData[index].x : labels[index])
+                                }
+                                decorator={() => renderChartInteraction(def)}
+                            />
+                            {tooltipPos.visible && (
+                                <Pressable 
+                                    style={[StyleSheet.absoluteFill, { zIndex: 50 }]} 
+                                    onPress={hideTooltip} 
+                                />
+                            )}
+                            
+                            {rangeMode === 'range' && (
+                                <Svg position="absolute" top={0} left={0} width={w} height={h} pointerEvents="none">
+                                    <Path 
+                                        d={(() => {
+                                            const rd = rangeData;
+                                            if (rd.length < 2) return "";
+                                            const xs = w / (rd.length - 1);
+                                            const allV = rd.flatMap(d => [d.min, d.max]).filter(v => v > 0);
+                                            const minV = Math.min(...allV) * 0.9;
+                                            const maxV = Math.max(...allV) * 1.1;
+                                            const r = maxV - minV;
+                                            const gy = (v) => h - ((v - minV) / (r || 1)) * h;
+                                            let pd = `M 0 ${gy(rd[0].max)}`;
+                                            for (let i = 1; i < rd.length; i++) pd += ` L ${i * xs} ${gy(rd[i].max)}`;
+                                            for (let i = rd.length - 1; i >= 0; i--) pd += ` L ${i * xs} ${gy(rd[i].min)}`;
+                                            return pd + ' Z';
+                                        })()}
+                                        fill={def.accent} 
+                                        fillOpacity={0.1} 
+                                    />
+                                </Svg>
+                            )}
+                        </View>
+                    </ChartErrorBoundary>
+                </View>
+            </Modal>
         );
     };
 
@@ -562,7 +577,7 @@ export default function VitalsHistoryScreen({ navigation }) {
 
         return (
             <Animated.View style={{ opacity: tooltipFade, pointerEvents: 'none', position: 'absolute' }}>
-                <Svg height="240" width={SCREEN_W - 72} style={{ position: 'absolute' }}>
+                <Svg height="240" width={SCREEN_W - 80} style={{ position: 'absolute' }}>
                     <Line x1={x} y1={0} x2={x} y2={240} stroke={def.accent} strokeWidth="1.5" strokeDasharray="5, 5" />
                     <Circle cx={x} cy={y} r={6} fill="#FFFFFF" stroke={def.accent} strokeWidth="3" />
                 </Svg>
@@ -632,7 +647,7 @@ export default function VitalsHistoryScreen({ navigation }) {
                                             { data: rangeData.map(d => d.y || 0), color: () => def.accent, strokeWidth: 3 },
                                         ],
                                     }}
-                                    width={SCREEN_W - 72}
+                                    width={SCREEN_W - 80}
                                     height={240}
                                     chartConfig={chartConfig}
                                     bezier={rangeData.length > 1}
@@ -662,7 +677,7 @@ export default function VitalsHistoryScreen({ navigation }) {
                                         ...(def.extractAlt ? [{ data: vitals.map(v => Number(def.extractAlt(v)) || 0).reverse(), color: () => '#94A3B840', strokeWidth: 2, withDots: false }] : [])
                                     ]
                                 }}
-                                width={SCREEN_W - 72}
+                                width={SCREEN_W - 80}
                                 height={220}
                                 chartConfig={chartConfig}
                                 bezier={mainData.length > 1}
@@ -786,15 +801,11 @@ export default function VitalsHistoryScreen({ navigation }) {
     );
 
     // ─── Main Render ────────────────────────────────────────────
-    if ((isLandscape || isFullscreen) && vitals.length > 0) {
-        return renderLandscapeView();
-    }
-
-
     const def = CHART_DEFS.find(c => c.id === activeMetricId);
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            {renderFullscreenChart()}
             <View style={[styles.container, { backgroundColor: def ? def.bgTint : '#FFFFFF' }]}>
                 {renderHeader()}
 
@@ -1195,7 +1206,7 @@ const styles = StyleSheet.create({
     chartIconPill: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     chartTitle: { fontSize: 17, fontWeight: '800', color: '#1E293B' },
     chartUnit: { fontSize: 13, color: '#94A3B8', fontWeight: '700' },
-    chart: { borderRadius: 16, marginLeft: -15 },
+    chart: { borderRadius: 16, marginLeft: -10 },
 
     metricTabsWrapper: { marginBottom: 20, marginTop: 4 },
     metricTabsContent: { paddingHorizontal: 4, gap: 12, paddingBottom: 4 },
@@ -1277,16 +1288,17 @@ const styles = StyleSheet.create({
     historyUnit: { fontSize: 13, fontWeight: '700', color: '#94A3B8' },
 
     /* Landscape View */
-    landscapeContainer: { flex: 1, backgroundColor: '#F8FAFC', padding: 20, justifyContent: 'center' },
-    landscapeHeader: { marginBottom: 10, flexDirection: 'row', alignItems: 'baseline', gap: 12 },
-    landscapeTitle: { fontSize: 20, fontWeight: '900', color: '#1E293B' },
-    landscapeSubtitle: { fontSize: 13, fontWeight: '600', color: '#64748B' },
+    landscapeContainer: { flex: 1, backgroundColor: '#FFFFFF', padding: 16, justifyContent: 'center' },
+    landscapeHeader: { position: 'absolute', top: 20, left: 24, zIndex: 90 },
+    landscapeTitle: { fontSize: 24, fontWeight: '900', color: '#1E293B' },
+    landscapeSubtitle: { fontSize: 13, fontWeight: '700', color: '#64748B', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
     landscapeChart: { borderRadius: 20, alignSelf: 'center' },
 
     closeFullscreenBtn: {
-        position: 'absolute', top: 20, right: 20, zIndex: 100,
-        backgroundColor: '#FFFFFF', padding: 10, borderRadius: 12,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
+        position: 'absolute', top: 20, right: 20, zIndex: 1000,
+        backgroundColor: '#F1F5F9', width: 48, height: 48, borderRadius: 24,
+        alignItems: 'center', justifyContent: 'center',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
     },
     expandBtn: {
         padding: 4,

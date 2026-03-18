@@ -354,6 +354,14 @@ export default function PatientHomeScreen({ navigation }) {
 
                 <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <View style={styles.section}>
+                        <Text style={styles.sectionHeader}>TODAY'S MEDICATIONS</Text>
+                        {meds.map(med => <MedicationCard key={med.id} med={med} onCheck={toggleMed} />)}
+                        {meds.length === 0 && <Text style={{ color: '#94A3B8', fontStyle: 'italic', marginTop: 10 }}>No medications scheduled for today.</Text>}
+                    </View>
+                </Animated.View>
+
+                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                    <View style={styles.section}>
                         <View style={styles.sectionHeaderRow}>
                             <Text style={styles.sectionHeader}>MY VITALS</Text>
                             <Pressable style={styles.viewAllBtn} onPress={() => navigation.navigate('VitalsHistory')}>
@@ -433,15 +441,7 @@ export default function PatientHomeScreen({ navigation }) {
                     </View>
                 </Animated.View>
 
-                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-                    <View style={styles.section}>
-                        <Text style={styles.sectionHeader}>TODAY'S MEDICATIONS</Text>
-                        {meds.map(med => <MedicationCard key={med.id} med={med} onCheck={toggleMed} />)}
-                        {meds.length === 0 && <Text style={{ color: '#94A3B8', fontStyle: 'italic', marginTop: 10 }}>No medications scheduled for today.</Text>}
-                    </View>
-                </Animated.View>
-
-                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <View style={styles.section}>
                         <LinearGradient colors={['#EEF4FF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.tipCardEnhanced}>
                             <View style={styles.tipTitleRow}>
@@ -453,7 +453,7 @@ export default function PatientHomeScreen({ navigation }) {
                     </View>
                 </Animated.View>
 
-                <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[5], transform: [{ translateY: staggerAnims[5].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <View style={styles.section}>
                         <Text style={styles.sectionHeader}>QUICK ACTIONS</Text>
                         <View style={styles.quickGrid}>
