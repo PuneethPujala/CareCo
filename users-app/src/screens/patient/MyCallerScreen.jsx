@@ -626,11 +626,11 @@ const s = StyleSheet.create({
 
   // ── Header (Premium Gradient Design) ──
   headerWrap: { zIndex: 10 },
-  minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 24, backgroundColor: 'transparent' },
-  mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: 'transparent' },
+  mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flex: 1 },
-  headerLabel: { fontSize: 13, ...FONT.bold, color: C.primary, letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 32, ...FONT.heavy, color: C.dark, letterSpacing: -1 },
+  headerLabel: { fontSize: 13, fontWeight: '800', color: C.primary, letterSpacing: 1.5, marginBottom: 4 },
+  headerTitle: { fontSize: 32, fontWeight: '800', color: C.dark, letterSpacing: -1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerRightBtn: {
     width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF',
@@ -650,27 +650,28 @@ const s = StyleSheet.create({
 
   // ── Contact Card ──
   contactCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 28, padding: 16, marginBottom: 12,
-    flexDirection: 'row', alignItems: 'center',
-    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 4,
+    backgroundColor: C.cardBg, borderRadius: 20, padding: 16, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: C.border,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 4,
   },
   contactAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  contactAvatarTxt: { fontSize: 20, ...FONT.bold },
+  contactAvatarTxt: { fontSize: 18, fontWeight: '700', color: '#FFF' },
   contactInfo: { flex: 1 },
-  contactName: { fontSize: 16, ...FONT.bold, color: '#0F172A', marginBottom: 4 },
-  contactSub: { fontSize: 13, ...FONT.medium, color: '#64748B' },
+  contactName: { fontSize: 16, fontWeight: '600', color: C.dark, marginBottom: 4 },
+  contactSub: { fontSize: 13, fontWeight: '500', color: C.muted },
   contactActions: { flexDirection: 'row', gap: 6 },
   iconActionBtn: { padding: 12, backgroundColor: '#F8FAFC', borderRadius: 12 },
 
   // ── Caller Card ──
   callerCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 36, // Squircle style
+    backgroundColor: C.cardBg,
+    borderRadius: 24,
     marginBottom: 24,
     padding: 24,
-    shadowColor: '#6366F1', // Tinted shadow
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.08, shadowRadius: 32, elevation: 8,
+    borderWidth: 1, borderColor: C.border,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04, shadowRadius: 16, elevation: 4,
   },
   callerCardPressed: { opacity: 0.96, transform: [{ scale: 0.98 }] },
 
@@ -679,27 +680,26 @@ const s = StyleSheet.create({
     marginBottom: 28,
   },
   avatarWrap: { position: 'relative', marginRight: 18 },
-  avatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { fontSize: 32, ...FONT.heavy, color: '#FFF' },
+  avatar: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  avatarLetter: { fontSize: 24, fontWeight: '700', color: '#FFF' },
   onlineDot: {
     position: 'absolute', bottom: 2, right: 2,
-    width: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#10B981', borderWidth: 4, borderColor: '#FFF',
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#10B981', borderWidth: 3, borderColor: '#FFF',
   },
   profileInfo: { flex: 1 },
   callerName: {
-    fontSize: 22,
-    ...FONT.bold,
-    color: '#0F172A',
-    marginBottom: 6,
-    letterSpacing: -0.5,
+    fontSize: 18,
+    fontWeight: '700',
+    color: C.dark,
+    marginBottom: 4,
   },
   metaRow: { flexDirection: 'row', alignItems: 'center' },
-  idChipText: { fontSize: 13, ...FONT.medium, color: '#64748B' },
-  dotDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#CBD5E1', marginHorizontal: 8 },
+  idChipText: { fontSize: 13, fontWeight: '500', color: C.muted },
+  dotDivider: { width: 4, height: 4, borderRadius: 2, backgroundColor: C.light, marginHorizontal: 8 },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   onlinePillDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981' },
-  onlinePillText: { fontSize: 13, ...FONT.medium, color: '#10B981' },
+  onlinePillText: { fontSize: 13, fontWeight: '500', color: '#10B981' },
   chevronWrap: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: '#F8FAFC',
     alignItems: 'center', justifyContent: 'center', marginLeft: 10,
@@ -711,34 +711,33 @@ const s = StyleSheet.create({
   },
   btnCall: {
     flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 100, // True pill
-    height: 56, backgroundColor: '#6366F1', // Indigo
-    shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+    borderRadius: 16,
+    height: 48, backgroundColor: C.primary,
   },
   btnCallPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  btnCallText: { fontSize: 16, ...FONT.bold, color: '#FFF' },
+  btnCallText: { fontSize: 15, fontWeight: '600', color: '#FFF' },
 
   btnFlag: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 100, height: 56, backgroundColor: '#FFF',
-    borderWidth: 2, borderColor: '#FFE4E6', // Danger padding
+    borderRadius: 16, height: 48, backgroundColor: '#FFF',
+    borderWidth: 1, borderColor: C.dangerBg,
   },
-  btnFlagPressed: { backgroundColor: '#FEF2F2' },
-  btnFlagText: { fontSize: 15, ...FONT.bold, color: '#F43F5E' },
+  btnFlagPressed: { backgroundColor: C.dangerBg },
+  btnFlagText: { fontSize: 15, fontWeight: '600', color: C.danger },
 
   // ── Empty / Upgrade state ──
   emptyWrap: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 20 },
-  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 36, padding: 32, alignItems: 'center', shadowColor: '#64748B', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.05, shadowRadius: 24, elevation: 4 },
-  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 20, ...FONT.bold, color: '#0F172A', marginBottom: 8, letterSpacing: -0.3 },
-  emptyBody: { fontSize: 15, ...FONT.medium, color: '#64748B', textAlign: 'center', lineHeight: 22 },
+  emptyCard: { backgroundColor: C.cardBg, borderRadius: 24, padding: 32, alignItems: 'center', borderWidth: 1, borderColor: C.border, shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 4 },
+  emptyIconWrap: { width: 80, height: 80, borderRadius: 40, backgroundColor: C.pageBg, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.dark, marginBottom: 8 },
+  emptyBody: { fontSize: 14, fontWeight: '500', color: C.muted, textAlign: 'center', lineHeight: 22 },
   
   upgradeIconWrap: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: '#EEF2FF',
+    width: 80, height: 80, borderRadius: 40, backgroundColor: C.primarySoft,
     alignItems: 'center', justifyContent: 'center', marginBottom: 24,
   },
-  upgradeTitle: { fontSize: 24, ...FONT.bold, color: '#0F172A', marginBottom: 12, letterSpacing: -0.5 },
-  upgradeBody: { fontSize: 16, ...FONT.regular, color: '#64748B', textAlign: 'center', lineHeight: 24 },
+  upgradeTitle: { fontSize: 20, fontWeight: '700', color: C.dark, marginBottom: 12 },
+  upgradeBody: { fontSize: 15, fontWeight: '500', color: C.muted, textAlign: 'center', lineHeight: 24 },
 
   // ── Modal ──
   backdrop: {

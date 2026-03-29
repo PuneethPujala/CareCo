@@ -389,10 +389,19 @@ router.get('/me', authenticate, async (req, res) => {
  */
 router.put('/me', authenticate, async (req, res) => {
     try {
-        const { name, city, date_of_birth } = req.body;
+        const { name, city, date_of_birth, phone, gender, blood_type, language } = req.body;
+        const updates = {};
+        if (name !== undefined) updates.name = name;
+        if (city !== undefined) updates.city = city;
+        if (date_of_birth !== undefined) updates.date_of_birth = date_of_birth;
+        if (phone !== undefined) updates.phone = phone;
+        if (gender !== undefined) updates.gender = gender;
+        if (blood_type !== undefined) updates.blood_type = blood_type;
+        if (language !== undefined) updates.language = language;
+
         const patient = await Patient.findOneAndUpdate(
             { supabase_uid: req.user.id },
-            { $set: { name, city, date_of_birth } },
+            { $set: updates },
             { new: true }
         );
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });

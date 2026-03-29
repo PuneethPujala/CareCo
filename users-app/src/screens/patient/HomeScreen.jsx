@@ -208,10 +208,15 @@ export default function PatientHomeScreen({ navigation }) {
     };
 
     // Use focus effect to refresh data when returning from Vitals History/Log
+    const hasAnimated = useRef(false);
     useFocusEffect(
         useCallback(() => {
-            fetchData();
-            runAnimations();
+            fetchData().then(() => {
+                if (!hasAnimated.current) {
+                    hasAnimated.current = true;
+                    runAnimations();
+                }
+            });
             return () => {};
         }, [fetchData, runAnimations])
     );
@@ -490,8 +495,7 @@ const styles = StyleSheet.create({
     mainHeaderRow: { 
         flexDirection: 'row', 
         justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginTop: 4
+        alignItems: 'center'
     },
     headerLeft: { flex: 1 },
     headerRight: { 
@@ -508,9 +512,9 @@ const styles = StyleSheet.create({
     },
     locationLabel: { fontSize: 10, color: '#3B82F6', fontWeight: '800', marginRight: 4, letterSpacing: 0.2, textTransform: 'uppercase' },
 
-    greetingGroupCompact: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-    greetingGreeting: { fontSize: 12, color: colors.primary, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
-    greetingNameCompact: { fontSize: 32, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
+    greetingGroupCompact: { flexDirection: 'column', alignItems: 'flex-start' },
+    greetingGreeting: { fontSize: 13, color: '#6366F1', fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+    greetingNameCompact: { fontSize: 32, fontWeight: '800', color: '#0F172A', letterSpacing: -1 },
 
     dateBadge: {
         flexDirection: 'row',

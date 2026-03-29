@@ -116,12 +116,12 @@ const s = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 70 : 60,
-    paddingHorizontal: 28,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 70 : 50,
+    paddingHorizontal: 24,
+    paddingBottom: 16,
     backgroundColor: C.pageBg,
   },
-  headerTitle: { fontSize: 28, ...FONT.heavy, color: C.dark, letterSpacing: -0.5 },
+  headerTitle: { fontSize: 32, fontWeight: '800', color: C.dark, letterSpacing: -1 },
   searchBtn: { 
     width: 44, height: 44, borderRadius: 22, 
     borderWidth: 1.5, borderColor: C.border, backgroundColor: '#FFF',

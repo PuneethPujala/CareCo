@@ -202,6 +202,11 @@ const PatientSchema = new mongoose.Schema(
                 instructions: String,
             },
         ],
+        emergency_contact: {
+            name: { type: String, trim: true },
+            phone: { type: String, trim: true },
+            relation: { type: String, trim: true },
+        },
         trusted_contacts: [
             {
                 name: String,
@@ -224,6 +229,10 @@ const PatientSchema = new mongoose.Schema(
             type: String,
             enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown'],
             default: 'unknown',
+        },
+        language: {
+            type: String,
+            default: 'en_IN',
         },
         mobility_level: {
             type: String,

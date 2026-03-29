@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator, Animated, Pressable, Linking, Modal, TouchableWithoutFeedback, TextInput, KeyboardAvoidingView, Alert } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TriangleAlert, ShieldCheck, HeartPulse, Activity, Stethoscope, Droplet, User, CalendarDays, Watch, Flame, Phone, Plus, Edit2, X, Trash2, CheckCircle2 } from 'lucide-react-native';
 import { apiService } from '../../lib/api';
@@ -98,9 +99,18 @@ export default function HealthProfileScreen({ navigation }) {
         }
     };
 
-    useEffect(() => {
-        loadProfile().then(runAnimations);
-    }, [runAnimations]);
+    const hasAnimated = useRef(false);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadProfile().then(() => {
+                if (!hasAnimated.current) {
+                    hasAnimated.current = true;
+                    runAnimations();
+                }
+            });
+        }, [runAnimations])
+    );
 
     const openModal = (type, item = null) => {
         setEditingType(type);
@@ -110,16 +120,8 @@ export default function HealthProfileScreen({ navigation }) {
             // defaults
             if (type === 'condition') setFormState({ name: '', status: 'managed', severity: 'moderate', notes: '' });
             else if (type === 'allergy') setFormState({ name: '', severity: 'moderate', reaction: '' });
-            else if (type === 'vitals') setFormState({ height_cm: profile?.lifestyle?.height_cm || '', weight_kg: profile?.lifestyle?.weight_kg || '', blood_type: profile?.lifestyle?.blood_type || 'unknown' });
+            else if (type === 'vitals') setFormState({ height_cm: profile?.lifestyle?.height_cm || '', weight_kg: profile?.lifestyle?.weight_kg || '' });
             else if (type === 'habits') setFormState({ smoking_status: profile?.lifestyle?.smoking_status || 'never', alcohol_use: profile?.lifestyle?.alcohol_use || 'none' });
-            else if (type === 'dob') {
-                const birthDate = profile?.date_of_birth ? new Date(profile.date_of_birth) : new Date(1970, 0, 1);
-                setFormState({ 
-                    year: birthDate.getFullYear(), 
-                    month: birthDate.getMonth(), 
-                    day: birthDate.getDate() 
-                });
-            }
             else if (type === 'activity') setFormState({ exercise_frequency: profile?.lifestyle?.exercise_frequency || 'none', mobility_level: profile?.lifestyle?.mobility_level || 'full' });
             else if (type === 'gp') setFormState({ gp_name: profile?.gp?.name || '', gp_phone: profile?.gp?.phone || '', gp_email: profile?.gp?.email || '' });
             else if (type === 'history') setFormState({ event: '', date: '', notes: '' });
@@ -207,10 +209,6 @@ export default function HealthProfileScreen({ navigation }) {
             else if (editingType === 'history') res = await apiService.patients.updateMedicalHistory({ ...payload, date: payload.date ? new Date(payload.date) : new Date() });
             else if (editingType === 'medication') res = await apiService.patients.updateMedications(payload);
             else if (editingType === 'vaccination') res = await apiService.patients.updateVaccinations({ ...payload, date_given: payload.date_given ? new Date(payload.date_given) : new Date() });
-            else if (editingType === 'dob') {
-                const dob = new Date(payload.year, payload.month, payload.day);
-                res = await apiService.patients.updateMe({ date_of_birth: dob });
-            }
             else if (editingType === 'appointment') res = await apiService.patients.updateAppointments({ ...payload, date: payload.date ? new Date(payload.date) : new Date() });
             
             await loadProfile();
@@ -264,7 +262,6 @@ export default function HealthProfileScreen({ navigation }) {
     const alcoholOptions = [{label: 'Non-Drinker', value: 'none'}, {label: 'Occasional', value: 'occasional'}, {label: 'Frequent', value: 'heavy'}];
     const exerciseOptions = [{label: 'No Activity', value: 'none'}, {label: 'Light (Walks, Stretching)', value: 'light'}, {label: 'Moderate (Gym, Jogging)', value: 'moderate'}, {label: 'Highly Active (Heavy Cardio)', value: 'active'}];
     const mobilityOptions = [{label: 'Full', value: 'full'}, {label: 'Limited', value: 'limited'}, {label: 'Wheelchair', value: 'wheelchair'}, {label: 'Bedridden', value: 'bedridden'}];
-    const bloodTypeOptions = [{label: 'A+', value: 'A+'}, {label: 'A-', value: 'A-'}, {label: 'B+', value: 'B+'}, {label: 'O+', value: 'O+'}, {label: 'O-', value: 'O-'}, {label: 'AB+', value: 'AB+'}, {label: 'Unknown', value: 'unknown'}];
     const frequencyOptions = [{label: 'Daily', value: 'daily'}, {label: 'Weekly', value: 'weekly'}, {label: 'As Needed', value: 'as_needed'}];
     const timeOptions = [{label: 'Morning', value: 'morning'}, {label: 'Afternoon', value: 'afternoon'}, {label: 'Evening', value: 'evening'}, {label: 'Night', value: 'night'}];
 
@@ -285,10 +282,9 @@ export default function HealthProfileScreen({ navigation }) {
                             <Text style={s.headerTitle}>Health Profile</Text>
                         </View>
                         <View style={s.headerRight}>
-                            <Pressable style={({pressed}) => [s.ageBadge, pressed && {scale: 0.95, opacity: 0.8}]} onPress={() => openModal('dob')}>
-                                <View style={s.editIconInBadge}><Edit2 size={10} color={C.primary} /></View>
-                                <Text style={s.ageBadgeTxt}>{age ? `${age} Yrs` : 'Set Age'}</Text>
-                            </Pressable>
+                            <View style={s.ageBadge}>
+                                <Text style={s.ageBadgeTxt}>{age ? `${age} Yrs` : 'No Age Set'}</Text>
+                            </View>
                         </View>
                     </View>
                 </Animated.View>
@@ -539,10 +535,6 @@ export default function HealthProfileScreen({ navigation }) {
                                     <>
                                         <View style={s.formGroup}><Text style={s.formLabel}>Height (cm)</Text><TextInput style={s.input} placeholderTextColor={C.muted} keyboardType="numeric" value={String(formState.height_cm||'')} onChangeText={(t) => setFormState({...formState, height_cm: Number(t)})} placeholder="170" /></View>
                                         <View style={s.formGroup}><Text style={s.formLabel}>Weight (kg)</Text><TextInput style={s.input} placeholderTextColor={C.muted} keyboardType="numeric" value={String(formState.weight_kg||'')} onChangeText={(t) => setFormState({...formState, weight_kg: Number(t)})} placeholder="70" /></View>
-                                        <View style={s.formGroup}>
-                                            <Text style={s.formLabel}>Blood Type</Text>
-                                            <ChipSelector options={bloodTypeOptions} selected={formState.blood_type} onSelect={v => setFormState({...formState, blood_type: v})} />
-                                        </View>
                                     </>
                                 )}
                                 {editingType === 'habits' && (
@@ -673,11 +665,11 @@ export default function HealthProfileScreen({ navigation }) {
 const s = StyleSheet.create({
     container: { flex: 1 },
     headerWrap: { zIndex: 10 },
-    minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 24, backgroundColor: 'transparent' },
-    mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: 'transparent' },
+    mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     headerLeft: { flex: 1 },
-    headerLabel: { fontSize: 13, ...FONT.bold, color: C.primary, letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' },
-    headerTitle: { fontSize: 32, ...FONT.heavy, color: C.dark, letterSpacing: -1 },
+    headerLabel: { fontSize: 13, fontWeight: '800', color: C.primary, letterSpacing: 1.5, marginBottom: 4 },
+    headerTitle: { fontSize: 32, fontWeight: '800', color: C.dark, letterSpacing: -1 },
     headerRight: { flexDirection: 'row', alignItems: 'center' },
     ageBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.primarySoft, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0' },
     editIconInBadge: { marginRight: 6, opacity: 0.8 },
