@@ -20,7 +20,7 @@ const PLANS = [
         period: '/month',
         tagline: 'Perfect to get started',
         color: colors.accent,
-        gradient: ['#3A86FF', '#1E5FAD'],
+        gradient: ['#6366F1', '#4338CA'],
         icon: PhoneCall,
         features: [
             'Daily check-in call from care coordinator',
@@ -80,7 +80,7 @@ export default function SubscribePlansScreen({ navigation }) {
     return (
         <View style={styles.container}>
             <LinearGradient
-                colors={['#0A2463', '#1E5FAD']}
+                colors={['#4338CA', '#38BDF8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.hero}
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         borderWidth: 1.5,
         borderColor: '#E2E8F0',
-        shadowColor: '#0A2463',
+        shadowColor: '#6366F1',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.06,
         shadowRadius: 12,

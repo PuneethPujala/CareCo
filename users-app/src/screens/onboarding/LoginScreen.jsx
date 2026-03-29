@@ -16,6 +16,29 @@ import * as WebBrowser from 'expo-web-browser';
 
 WebBrowser.maybeCompleteAuthSession();
 
+const C = {
+    primary: '#6366F1',
+    primaryDark: '#4338CA',
+    primarySoft: '#EEF2FF',
+    dark: '#0F172A',
+    mid: '#334155',
+    muted: '#94A3B8',
+    light: '#CBD5E1',
+    border: '#F1F5F9',
+    borderMid: '#E2E8F0',
+    danger: '#F43F5E',
+    dangerBg: '#FFE4E6',
+    pageBg: '#F8FAFC',
+};
+
+const FONT = {
+    regular: { fontFamily: 'Inter_400Regular' },
+    medium: { fontFamily: 'Inter_500Medium' },
+    semibold: { fontFamily: 'Inter_600SemiBold' },
+    bold: { fontFamily: 'Inter_700Bold' },
+    heavy: { fontFamily: 'Inter_800ExtraBold' },
+};
+
 export default function LoginScreen({ navigation }) {
     const { signIn, signInWithGoogle, resetPassword } = useAuth();
 
@@ -191,25 +214,27 @@ export default function LoginScreen({ navigation }) {
                 showsVerticalScrollIndicator={false}
             >
 
-                {/* Hero Section */}
+                {/* Hero Section — Indigo→Cyan Gradient */}
                 <Animated.View style={{ transform: [{ translateY: heroAnim }], opacity: heroOpacity }}>
                     <LinearGradient
-                        colors={['#0A2463', '#3A86FF']}
+                        colors={['#4338CA', '#38BDF8']}
                         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                         style={styles.hero}
                     >
-                        <View style={styles.decorativeCircle1} />
-                        <View style={styles.decorativeCircle2} />
+                        <View style={[styles.decorativeCircle, { top: -60, right: -40, width: 250, height: 250, backgroundColor: 'rgba(255, 255, 255, 0.12)' }]} />
+                        <View style={[styles.decorativeCircle, { top: 60, left: -80, width: 200, height: 200, backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
+                        <View style={[styles.decorativeCircle, { bottom: -80, right: 40, width: 160, height: 160, backgroundColor: 'rgba(255, 255, 255, 0.05)' }]} />
 
                         <View style={styles.heroIconWrap}>
                             <HeartPulse size={48} color="#FFFFFF" strokeWidth={1.5} />
                         </View>
+                        <Text style={styles.heroLabel}>CARECO</Text>
                         <Text style={styles.heroTitle}>Welcome Back</Text>
                         <Text style={styles.heroSubtitle}>Your health journey continues here</Text>
                     </LinearGradient>
                 </Animated.View>
 
-                {/* Form Card */}
+                {/* Form Card — Squircle */}
                 <Animated.View style={[styles.formCard, { transform: [{ translateY: cardAnim }], opacity: cardOpacity }]}>
 
                     {/* Social/Alt Logins */}
@@ -219,7 +244,7 @@ export default function LoginScreen({ navigation }) {
                             <Text style={styles.socialBtnTextPremium}>Google</Text>
                         </Pressable>
                         <Pressable style={styles.socialBtnPremium} onPress={() => { }} disabled={loading}>
-                            <Smartphone size={20} color="#64748B" />
+                            <Smartphone size={20} color={C.mid} />
                             <Text style={styles.socialBtnTextPremium}>Mobile</Text>
                         </Pressable>
                     </View>
@@ -234,24 +259,26 @@ export default function LoginScreen({ navigation }) {
                     {/* Error */}
                     {errorText ? (
                         <View style={styles.errorBox}>
-                            <AlertCircle size={16} color={colors.danger} />
+                            <AlertCircle size={16} color={C.danger} />
                             <Text style={styles.errorMsg}>{errorText}</Text>
                         </View>
                     ) : null}
 
-                    {/* Email Field — §14 FIX: autoCorrect, spellCheck, textContentType */}
+                    {/* Email Field */}
                     <View style={styles.fieldGroup}>
                         <Text style={styles.label}>Email Address</Text>
                         <Pressable
                             style={[styles.inputWrap, emailFocused && styles.inputFocused]}
                             onPress={() => emailRef.current?.focus()}
                         >
-                            <Mail size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                            <View style={[styles.inlineIconBox, emailFocused && { backgroundColor: C.primarySoft }]}>
+                                <Mail size={18} color={emailFocused ? C.primary : C.muted} />
+                            </View>
                             <TextInput
                                 ref={emailRef}
                                 style={styles.textInput}
                                 placeholder="name@example.com"
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor={C.muted}
                                 value={email}
                                 onChangeText={handleEmailChange}
                                 autoCapitalize="none"
@@ -273,12 +300,14 @@ export default function LoginScreen({ navigation }) {
                             style={[styles.inputWrap, passFocused && styles.inputFocused]}
                             onPress={() => passwordRef.current?.focus()}
                         >
-                            <Lock size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                            <View style={[styles.inlineIconBox, passFocused && { backgroundColor: C.primarySoft }]}>
+                                <Lock size={18} color={passFocused ? C.primary : C.muted} />
+                            </View>
                             <TextInput
                                 ref={passwordRef}
                                 style={styles.textInput}
                                 placeholder="Enter password"
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor={C.muted}
                                 value={password}
                                 onChangeText={handlePasswordChange}
                                 secureTextEntry={!showPassword}
@@ -287,7 +316,7 @@ export default function LoginScreen({ navigation }) {
                                 onBlur={() => setPassFocused(false)}
                             />
                             <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={12}>
-                                {showPassword ? <Eye size={18} color="#3A86FF" /> : <EyeOff size={18} color="#94A3B8" />}
+                                {showPassword ? <Eye size={18} color={C.primary} /> : <EyeOff size={18} color={C.muted} />}
                             </Pressable>
                         </Pressable>
                     </View>
@@ -297,10 +326,10 @@ export default function LoginScreen({ navigation }) {
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                     </Pressable>
 
-                    {/* Login Button */}
+                    {/* Login Button — Indigo Pill */}
                     <Pressable style={[styles.primaryBtn, loading && { opacity: 0.7 }]} onPress={handleLogin} disabled={loading}>
                         <LinearGradient
-                            colors={['#3A86FF', '#1E5FAD']}
+                            colors={['#6366F1', '#4338CA']}
                             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                             style={styles.primaryBtnGradient}
                         >
@@ -333,11 +362,11 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    container: { flex: 1, backgroundColor: C.pageBg },
 
-    // ─── Hero Section ────────────────
+    // ─── Hero Section — Indigo→Cyan ────────────────
     hero: {
-        height: 280,
+        height: 300,
         borderBottomLeftRadius: 40,
         borderBottomRightRadius: 40,
         alignItems: 'center',
@@ -345,40 +374,32 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
         overflow: 'hidden',
     },
-    decorativeCircle1: {
-        position: 'absolute', top: -50, right: -50,
-        width: 180, height: 180, borderRadius: 90,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-    },
-    decorativeCircle2: {
-        position: 'absolute', bottom: -30, left: -40,
-        width: 120, height: 120, borderRadius: 60,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-    },
+    decorativeCircle: { position: 'absolute', borderRadius: 100 },
     heroIconWrap: {
         width: 80, height: 80, borderRadius: 24,
         backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center', justifyContent: 'center',
-        marginBottom: 20,
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+        marginBottom: 16,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
     },
-    heroTitle: { fontSize: 32, fontWeight: '800', color: '#FFFFFF' },
-    heroSubtitle: { fontSize: 15, fontWeight: '500', color: 'rgba(255,255,255,0.8)', marginTop: 4 },
+    heroLabel: { fontSize: 12, ...FONT.bold, color: 'rgba(255,255,255,0.6)', letterSpacing: 2, marginBottom: 6 },
+    heroTitle: { fontSize: 32, ...FONT.heavy, color: '#FFFFFF', letterSpacing: -0.5 },
+    heroSubtitle: { fontSize: 15, ...FONT.medium, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
 
-    // ─── Form Card Overlay ───────────
+    // ─── Form Card Overlay — Squircle ───────────
     formCard: {
         marginTop: -30,
         marginHorizontal: 20,
         backgroundColor: '#FFFFFF',
-        borderRadius: 30,
+        borderRadius: 36,
         paddingHorizontal: 24,
         paddingTop: 32,
         paddingBottom: 30,
-        shadowColor: 'rgba(0,0,0,0.1)',
+        shadowColor: C.primary,
         shadowOffset: { width: 0, height: 20 },
-        shadowOpacity: 1,
-        shadowRadius: 30,
-        elevation: 10,
+        shadowOpacity: 0.08,
+        shadowRadius: 32,
+        elevation: 12,
         marginBottom: 40,
         zIndex: 5,
     },
@@ -387,51 +408,60 @@ const styles = StyleSheet.create({
     socialBtnPremium: {
         flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         backgroundColor: '#FFFFFF',
-        borderWidth: 1, borderColor: '#E2E8F0',
-        borderRadius: 18, height: 60, gap: 12
+        borderWidth: 1.5, borderColor: C.borderMid,
+        borderRadius: 24, height: 60, gap: 12,
     },
-    socialBtnTextPremium: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-    googleG: { fontSize: 20, fontWeight: '800', color: '#4285F4' },
+    socialBtnTextPremium: { fontSize: 15, ...FONT.bold, color: C.dark },
+    googleG: { fontSize: 20, ...FONT.heavy, color: '#4285F4' },
 
     dividerRowPremium: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, paddingHorizontal: 10 },
-    dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-    dividerText: { marginHorizontal: 16, fontSize: 11, color: '#94A3B8', fontWeight: '800', letterSpacing: 1.5 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: C.borderMid },
+    dividerText: { marginHorizontal: 16, fontSize: 11, color: C.muted, ...FONT.heavy, letterSpacing: 1.5 },
 
     // ─── Fields ──────────────────────
     fieldGroup: { marginBottom: 20 },
-    label: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 10, marginLeft: 2 },
+    label: { fontSize: 13, ...FONT.bold, color: C.muted, marginBottom: 10, marginLeft: 2, letterSpacing: 0.5 },
+    inlineIconBox: {
+        width: 36, height: 36, borderRadius: 10,
+        backgroundColor: C.border, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    },
     inputWrap: {
         flexDirection: 'row', alignItems: 'center',
         backgroundColor: '#FFFFFF',
-        borderWidth: 1.5, borderColor: '#F1F5F9',
-        borderRadius: 18, height: 64,
-        paddingHorizontal: 20,
+        borderWidth: 1.5, borderColor: C.border,
+        borderRadius: 20, height: 64,
+        paddingHorizontal: 16,
     },
-    inputFocused: { borderColor: '#3A86FF', shadowColor: '#3A86FF', shadowOpacity: 0.05, shadowRadius: 15, elevation: 4 },
-    textInput: { flex: 1, fontSize: 16, color: '#1E293B', fontWeight: '600' },
+    inputFocused: {
+        borderColor: C.primary,
+        shadowColor: C.primary, shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 4 },
+        elevation: 4,
+    },
+    textInput: { flex: 1, fontSize: 16, color: C.dark, ...FONT.semibold },
 
     errorBox: {
         flexDirection: 'row', alignItems: 'center', gap: 10,
-        backgroundColor: '#FEF2F2', borderRadius: 16, padding: 16, marginBottom: 24,
-        borderWidth: 1, borderColor: '#FEE2E2'
+        backgroundColor: C.dangerBg, borderRadius: 20, padding: 16, marginBottom: 24,
+        borderWidth: 1, borderColor: '#FCA5A5',
     },
-    errorMsg: { color: '#DC2626', fontSize: 14, fontWeight: '600', flex: 1 },
+    errorMsg: { color: '#991B1B', fontSize: 14, ...FONT.semibold, flex: 1 },
 
     forgotRow: { alignSelf: 'flex-end', marginTop: -10, marginBottom: 32 },
-    forgotText: { fontSize: 14, fontWeight: '700', color: '#3A86FF' },
+    forgotText: { fontSize: 14, ...FONT.bold, color: C.primary },
 
+    // ─── Primary Button — Indigo Pill ────────
     primaryBtn: {
-        borderRadius: 20, height: 68,
+        borderRadius: 100, height: 64,
         overflow: 'hidden',
-        shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 8,
+        shadowColor: C.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10,
     },
     primaryBtnGradient: {
-        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
     },
-    primaryBtnText: { color: '#FFFFFF', fontSize: 18, fontWeight: '800' },
+    primaryBtnText: { color: '#FFFFFF', fontSize: 17, ...FONT.bold },
     loadingRow: { flexDirection: 'row', alignItems: 'center' },
 
     bottomLink: { flexDirection: 'row', justifyContent: 'center', marginTop: 40, paddingBottom: 20 },
-    bottomLinkText: { fontSize: 15, color: '#94A3B8', fontWeight: '500' },
-    bottomLinkAction: { fontSize: 15, fontWeight: '800', color: '#3A86FF' },
+    bottomLinkText: { fontSize: 15, color: C.muted, ...FONT.medium },
+    bottomLinkAction: { fontSize: 15, ...FONT.heavy, color: C.primary },
 });

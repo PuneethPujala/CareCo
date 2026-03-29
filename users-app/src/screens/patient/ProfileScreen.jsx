@@ -16,6 +16,15 @@ export default function PatientProfileScreen({ navigation }) {
     const [accountModalVisible, setAccountModalVisible] = useState(false);
     const [editAccountModalVisible, setEditAccountModalVisible] = useState(false);
     const [cpModalVisible, setCpModalVisible] = useState(false);
+    const [notifModalVisible, setNotifModalVisible] = useState(false);
+
+    // Notification Prefs
+    const [notifPrefs, setNotifPrefs] = useState({
+        medications: true,
+        appointments: true,
+        messages: true,
+        vitals: false,
+    });
 
     // EC Form
     const [ecName, setEcName] = useState('');
@@ -124,17 +133,29 @@ export default function PatientProfileScreen({ navigation }) {
 
     return (
         <View style={styles.container}>
-            {/* Gradient Header */}
-            <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
-                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
-                <Text style={styles.heroLabel}>CareCo</Text>
-                <Text style={styles.headerTitle}>My Profile</Text>
-            </LinearGradient>
+            {/* Minimal Header */}
+            <View style={{ zIndex: 10, elevation: 10 }}>
+                <Animated.View style={[styles.minimalHeader, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]}>
+                    <View style={styles.mainHeaderRow}>
+                        <View style={styles.headerLeft}>
+                            <Text style={styles.heroLabel}>CARE RECORD</Text>
+                            <Text style={styles.headerTitle}>My Profile</Text>
+                        </View>
+                        <View style={styles.headerRight}>
+                            <Pressable 
+                                style={styles.headerRightBtn}
+                                onPress={() => navigation.navigate('Notifications')}
+                            >
+                                <Bell size={20} color={colors.primary} strokeWidth={2.5} />
+                            </Pressable>
+                        </View>
+                    </View>
+                </Animated.View>
+            </View>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
                 {/* Profile Card */}
-                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ scale: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ scale: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
                     <View style={styles.profileCardEnhanced}>
                         <View style={styles.profileMain}>
                             <View style={styles.avatarLarge}>
@@ -165,7 +186,7 @@ export default function PatientProfileScreen({ navigation }) {
                     </View>
                 </Animated.View>
 
-                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <Text style={styles.sectionHeader}>ACCOUNT SETTINGS</Text>
                     <View style={styles.settingsGroupEnhanced}>
                         <Pressable style={styles.settingRowEnhanced} onPress={() => setAccountModalVisible(true)}>
@@ -191,10 +212,10 @@ export default function PatientProfileScreen({ navigation }) {
                     </View>
                 </Animated.View>
 
-                <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <Text style={[styles.sectionHeader, { marginTop: 24 }]}>APP PREFERENCES</Text>
                     <View style={styles.settingsGroupEnhanced}>
-                        <Pressable style={styles.settingRowEnhanced}>
+                        <Pressable style={styles.settingRowEnhanced} onPress={() => setNotifModalVisible(true)}>
                             <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}><Bell size={20} color="#22C55E" /></View>
                             <Text style={styles.settingLabelEnhanced}>Notifications</Text>
                             <ChevronRight size={20} color="#CBD5E1" />
@@ -202,7 +223,7 @@ export default function PatientProfileScreen({ navigation }) {
                     </View>
                 </Animated.View>
 
-                <Animated.View style={{ opacity: staggerAnims[3], transform: [{ translateY: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <Pressable style={styles.logoutBtnEnhanced} onPress={() => signOut()}>
                         <LogOut size={20} color="#EF4444" strokeWidth={2.5} />
                         <Text style={styles.logoutBtnTxtEnhanced}>Sign Out Account</Text>
@@ -326,31 +347,115 @@ export default function PatientProfileScreen({ navigation }) {
                     </View>
                 </View>
             </Modal>
+
+            {/* Notification Preferences Modal */}
+            <Modal visible={notifModalVisible} animationType="slide" transparent={true} onRequestClose={() => setNotifModalVisible(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Notification Settings</Text>
+                            <Pressable onPress={() => setNotifModalVisible(false)} hitSlop={10}><X size={24} color="#64748B" /></Pressable>
+                        </View>
+
+                        <Text style={styles.modalSubTxt}>Choose what updates you want to receive.</Text>
+
+                        <View style={styles.switchRow}>
+                            <View style={styles.switchTxtCol}>
+                                <Text style={styles.switchTitle}>Medication Reminders</Text>
+                                <Text style={styles.switchDesc}>Get alerted when it's time to take your pills.</Text>
+                            </View>
+                            <Switch 
+                                trackColor={{ false: '#E2E8F0', true: '#818CF8' }} 
+                                thumbColor={notifPrefs.medications ? '#4338CA' : '#F8FAFC'}
+                                onValueChange={(v) => setNotifPrefs(prev => ({ ...prev, medications: v }))} 
+                                value={notifPrefs.medications} 
+                            />
+                        </View>
+                        <View style={styles.line} />
+
+                        <View style={styles.switchRow}>
+                            <View style={styles.switchTxtCol}>
+                                <Text style={styles.switchTitle}>Upcoming Appointments</Text>
+                                <Text style={styles.switchDesc}>Reminders for your scheduled visits.</Text>
+                            </View>
+                            <Switch 
+                                trackColor={{ false: '#E2E8F0', true: '#818CF8' }} 
+                                thumbColor={notifPrefs.appointments ? '#4338CA' : '#F8FAFC'}
+                                onValueChange={(v) => setNotifPrefs(prev => ({ ...prev, appointments: v }))} 
+                                value={notifPrefs.appointments} 
+                            />
+                        </View>
+                        <View style={styles.line} />
+
+                        <View style={styles.switchRow}>
+                            <View style={styles.switchTxtCol}>
+                                <Text style={styles.switchTitle}>Care Team Messages</Text>
+                                <Text style={styles.switchDesc}>Alerts from caretakers and doctors.</Text>
+                            </View>
+                            <Switch 
+                                trackColor={{ false: '#E2E8F0', true: '#818CF8' }} 
+                                thumbColor={notifPrefs.messages ? '#4338CA' : '#F8FAFC'}
+                                onValueChange={(v) => setNotifPrefs(prev => ({ ...prev, messages: v }))} 
+                                value={notifPrefs.messages} 
+                            />
+                        </View>
+                        <View style={styles.line} />
+
+                        <View style={styles.switchRow}>
+                            <View style={styles.switchTxtCol}>
+                                <Text style={styles.switchTitle}>Vitals Logging Reminders</Text>
+                                <Text style={styles.switchDesc}>Daily ping to track your health vitals.</Text>
+                            </View>
+                            <Switch 
+                                trackColor={{ false: '#E2E8F0', true: '#818CF8' }} 
+                                thumbColor={notifPrefs.vitals ? '#4338CA' : '#F8FAFC'}
+                                onValueChange={(v) => setNotifPrefs(prev => ({ ...prev, vitals: v }))} 
+                                value={notifPrefs.vitals} 
+                            />
+                        </View>
+
+                        <Pressable style={styles.saveBtn} onPress={() => {
+                            setNotifModalVisible(false);
+                            Alert.alert('Success', 'Notification preferences updated!');
+                        }}>
+                            <Save size={18} color="#FFFFFF" />
+                            <Text style={styles.saveBtnText}>Save Preferences</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    hero: {
-        height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
-        alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    minimalHeader: {
+        paddingTop: Platform.OS === 'ios' ? 70 : 50,
+        paddingHorizontal: 24,
+        paddingBottom: 20,
+        backgroundColor: '#F8FAFC',
     },
-    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
-    heroLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+    mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    headerLeft: { flex: 1 },
+    heroLabel: { fontSize: 13, fontWeight: '800', color: '#6366F1', letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' },
+    headerTitle: { fontSize: 32, fontWeight: '800', color: '#0F172A', letterSpacing: -1 },
+    headerRight: { flexDirection: 'row', alignItems: 'center' },
+    headerRightBtn: {
+        width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF',
+        alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0',
+    },
 
     body: { flex: 1 },
     bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
 
-    profileCardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, marginBottom: 32, shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8, borderWidth: 1, borderColor: '#F1F5F9' },
+    profileCardEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24, marginBottom: 32, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.06, shadowRadius: 24, elevation: 8, borderWidth: 1, borderColor: '#F1F5F9' },
     profileMain: { flexDirection: 'row', alignItems: 'center' },
-    avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(58,134,255,0.1)' },
-    avatarTxt: { fontSize: 28, fontWeight: '800', color: colors.accent },
-    editBadge: { position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#FFF' },
+    avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(99,102,241,0.1)' },
+    avatarTxt: { fontSize: 28, fontWeight: '800', color: '#6366F1' },
+    editBadge: { position: 'absolute', bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: '#6366F1', alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#FFF' },
     profileInfo: { flex: 1, marginLeft: 20 },
-    profileName: { fontSize: 20, fontWeight: '800', color: '#1E293B' },
+    profileName: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
     profileEmail: { fontSize: 14, color: '#64748B', marginTop: 4, fontWeight: '500' },
     planBadgeEnhanced: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginTop: 10 },
     planBadgeTxt: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
@@ -358,33 +463,39 @@ const styles = StyleSheet.create({
     divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 20 },
     profileStats: { flexDirection: 'row', justifyContent: 'space-around' },
     statBox: { alignItems: 'center' },
-    statVal: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
+    statVal: { fontSize: 16, fontWeight: '800', color: '#0F172A' },
     statLabel: { fontSize: 12, color: '#94A3B8', marginTop: 4, fontWeight: '600' },
     statDivider: { width: 1, backgroundColor: '#F1F5F9', height: '80%' },
 
     sectionHeader: { fontSize: 13, fontWeight: '800', color: '#94A3B8', letterSpacing: 1.5, marginBottom: 16, marginLeft: 4, textTransform: 'uppercase' },
-    settingsGroupEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 20, mb: 24, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F8FAFC', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 8, elevation: 2 },
+    settingsGroupEnhanced: { backgroundColor: '#FFFFFF', borderRadius: 28, mb: 24, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 12, elevation: 2 },
     settingRowEnhanced: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1.5, borderBottomColor: '#F8FAFC' },
-    iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    iconBox: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
     settingLabelEnhanced: { flex: 1, fontSize: 15, fontWeight: '700', color: '#334155' },
     settingSubEnhanced: { fontSize: 12, color: '#94A3B8', marginTop: 2, fontWeight: '500' },
 
-    logoutBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#FFF1F2', paddingVertical: 18, borderRadius: 20, marginTop: 40, borderWidth: 1.5, borderColor: '#FFE4E6' },
+    logoutBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: '#FFF1F2', paddingVertical: 18, borderRadius: 100, marginTop: 40, borderWidth: 1.5, borderColor: '#FFE4E6' },
     logoutBtnTxtEnhanced: { fontSize: 16, fontWeight: '800', color: '#E11D48' },
     versionTxt: { textAlign: 'center', color: '#94A3B8', fontSize: 12, marginTop: 20, fontWeight: '600' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.6)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40, maxHeight: '85%' },
+    modalContent: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 24, paddingBottom: 40, maxHeight: '85%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { fontSize: 22, fontWeight: '800', color: '#1E293B' },
-    inputLabel: { fontSize: 14, fontWeight: '700', color: '#64748B', marginBottom: 8, marginTop: 16 },
-    input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#1E293B', fontWeight: '600' },
-    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: colors.accent, borderRadius: 16, paddingVertical: 16, marginTop: 32, shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
+    inputLabel: { fontSize: 13, fontWeight: '700', color: '#94A3B8', marginBottom: 10, marginTop: 16, letterSpacing: 0.5 },
+    input: { backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#0F172A', fontWeight: '600' },
+    saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#6366F1', borderRadius: 100, paddingVertical: 16, marginTop: 32, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 8 },
     saveBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 
     detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 14 },
     detailLabel: { fontSize: 15, color: '#64748B', fontWeight: '500' },
-    detailValue: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+    detailValue: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
     line: { height: 1.5, backgroundColor: '#F8FAFC', marginVertical: 4 },
+
+    modalSubTxt: { fontSize: 14, color: '#64748B', marginBottom: 20 },
+    switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+    switchTxtCol: { flex: 1, paddingRight: 16 },
+    switchTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+    switchDesc: { fontSize: 13, color: '#94A3B8', fontWeight: '500', lineHeight: 18 },
 });
 

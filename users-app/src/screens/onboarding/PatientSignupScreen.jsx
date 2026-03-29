@@ -59,7 +59,7 @@ const PasswordStrength = ({ password }) => {
     if (/[0-9]/.test(password)) score++;
     if (/[^A-Za-z0-9]/.test(password)) score++;
     const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
-    const barColors = ['transparent', '#EF4444', '#F59E0B', '#3A86FF', '#22C55E'];
+    const barColors = ['transparent', '#EF4444', '#F59E0B', '#6366F1', '#22C55E'];
     if (!password) return null;
     return (
         <View style={styles.strengthWrap}>
@@ -108,7 +108,7 @@ const StepIndicator = ({ current }) => (
 const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBlur, textPrefix, ...rest }) => (
     <View style={styles.fieldGroup}>
         {typeof label === 'string' ? (
-            <Text style={[styles.label, focused && { color: '#3A86FF' }]}>{label}</Text>
+            <Text style={[styles.label, focused && { color: '#6366F1' }]}>{label}</Text>
         ) : label}
         <View style={[
             styles.inputWrapEnhanced,
@@ -116,7 +116,7 @@ const IconInput = ({ icon: Icon, label, rightIcon, error, focused, onFocus, onBl
             error && styles.inputErrorEnhanced,
         ]}>
             <View style={[styles.inlineIconBox, focused && { backgroundColor: '#EFF6FF' }]}>
-                <Icon size={18} color={focused ? '#3A86FF' : '#94A3B8'} />
+                <Icon size={18} color={focused ? '#6366F1' : '#94A3B8'} />
             </View>
             {textPrefix && <Text style={styles.textPrefixStyle}>{textPrefix}</Text>}
             <TextInput
@@ -727,11 +727,11 @@ export default function PatientSignupScreen({ navigation, route }) {
                     <View style={styles.dividerLine} />
                 </View>
                 <View style={styles.trustRowEnhanced}>
-                    <View style={styles.trustItem}><Shield size={12} color="#3A86FF" /><Text style={styles.trustText}>HIPAA Secure</Text></View>
+                    <View style={styles.trustItem}><Shield size={12} color="#6366F1" /><Text style={styles.trustText}>HIPAA Secure</Text></View>
                     <View style={styles.trustDivider} />
-                    <View style={styles.trustItem}><Lock size={12} color="#3A86FF" /><Text style={styles.trustText}>256-bit SSL</Text></View>
+                    <View style={styles.trustItem}><Lock size={12} color="#6366F1" /><Text style={styles.trustText}>256-bit SSL</Text></View>
                     <View style={styles.trustDivider} />
-                    <View style={styles.trustItem}><CheckCircle2 size={12} color="#3A86FF" /><Text style={styles.trustText}>Privacy First</Text></View>
+                    <View style={styles.trustItem}><CheckCircle2 size={12} color="#6366F1" /><Text style={styles.trustText}>Privacy First</Text></View>
                 </View>
             </Animated.View>
 
@@ -752,7 +752,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                     <View style={{ flex: 1 }}>
                         <IconInput icon={Mail}
                             label={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Text style={[styles.label, focusField === 'email' && { color: '#3A86FF' }]}>Email Address</Text>
+                                <Text style={[styles.label, focusField === 'email' && { color: '#6366F1' }]}>Email Address</Text>
                                 {isEmailVerified && <CheckCircle2 size={12} color="#22C55E" />}
                             </View>}
                             placeholder="Enter your email"
@@ -772,7 +772,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                     <View style={{ flex: 1 }}>
                         <IconInput icon={Smartphone}
                             label={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Text style={[styles.label, focusField === 'phoneNumber' && { color: '#3A86FF' }]}>Phone Number</Text>
+                                <Text style={[styles.label, focusField === 'phoneNumber' && { color: '#6366F1' }]}>Phone Number</Text>
                                 {isPhoneVerified && <CheckCircle2 size={12} color="#22C55E" />}
                             </View>}
                             placeholder="10-digit number"
@@ -997,11 +997,11 @@ export default function PatientSignupScreen({ navigation, route }) {
             <Animated.View style={{ opacity: staggerAnims[0], transform: [{ scale: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }}>
                 <View style={styles.readyVisualWrap}>
                     <View style={styles.readyIconGrid}>
-                        <View style={[styles.readyIconBox, { top: 0, left: 20, backgroundColor: '#EFF6FF' }]}><User size={24} color="#3A86FF" /></View>
+                        <View style={[styles.readyIconBox, { top: 0, left: 20, backgroundColor: '#EFF6FF' }]}><User size={24} color="#6366F1" /></View>
                         <View style={[styles.readyIconBox, { top: 40, right: 10, backgroundColor: '#F0FFF4' }]}><CheckCircle2 size={24} color="#22C55E" /></View>
                         <View style={[styles.readyIconBox, { bottom: 0, left: 0, backgroundColor: '#FDF2F8' }]}><Sparkles size={24} color="#DB2777" /></View>
                     </View>
-                    <View style={styles.mainReadyCircle}><Shield size={64} color="#0A2463" strokeWidth={1.5} /></View>
+                    <View style={styles.mainReadyCircle}><Shield size={64} color="#4338CA" strokeWidth={1.5} /></View>
                 </View>
             </Animated.View>
 
@@ -1020,7 +1020,7 @@ export default function PatientSignupScreen({ navigation, route }) {
 
             <Animated.View style={{ opacity: staggerAnims[3], width: '100%', transform: [{ scale: staggerAnims[3].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
                 <Pressable style={styles.dashboardBtn} onPress={handleCompleteSignUp}>
-                    <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dashboardBtnGradient}>
+                    <LinearGradient colors={['#6366F1', '#4338CA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dashboardBtnGradient}>
                         <Text style={styles.dashboardBtnText}>Enter My Dashboard</Text>
                         <ArrowLeft size={20} color="#FFFFFF" style={{ transform: [{ rotate: '180deg' }] }} />
                     </LinearGradient>
@@ -1053,7 +1053,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                         </View>
                         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}>
                             {loadingCities ? (
-                                <ActivityIndicator size="large" color="#3A86FF" style={{ marginTop: 40 }} />
+                                <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 40 }} />
                             ) : filteredCities.length === 0 ? (
                                 <View style={styles.emptyState}>
                                     <MapPin size={32} color="#CBD5E1" />
@@ -1096,7 +1096,7 @@ export default function PatientSignupScreen({ navigation, route }) {
                 keyboardShouldPersistTaps="handled" bounces={false}>
 
                 <Animated.View style={{ transform: [{ translateY: heroAnim }], opacity: heroOpacity }}>
-                    <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroEnhanced}>
+                    <LinearGradient colors={['#4338CA', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroEnhanced}>
                         <View style={styles.decorativeCircleSmall} />
                         <View style={[styles.decorativeCircleSmall, { width: 80, height: 80, top: 20, right: 60, opacity: 0.05 }]} />
                         <View style={[styles.decorativeCircleSmall, { width: 60, height: 60, top: 40, left: -10, opacity: 0.1 }]} />
@@ -1150,7 +1150,7 @@ export default function PatientSignupScreen({ navigation, route }) {
 
 // ─── Styles (unchanged from original) ─────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F4F7FB' },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
     heroEnhanced: { height: 190, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, paddingTop: Platform.OS === 'ios' ? 50 : 30, overflow: 'hidden' },
     heroInside: { paddingHorizontal: 24 },
     decorativeCircleSmall: { position: 'absolute', top: -40, right: -40, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
@@ -1166,7 +1166,7 @@ const styles = StyleSheet.create({
     progressSegment: { height: '100%', width: '0%' },
     progressSegmentActive: { width: '50%', backgroundColor: '#FFFFFF' },
     progressSegmentDone: { width: '100%', backgroundColor: '#FFFFFF' },
-    formCard: { marginTop: -24, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 20, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, marginBottom: 40, shadowColor: 'rgba(10,36,99,0.12)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 24, elevation: 8 },
+    formCard: { marginTop: -24, marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 28, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, marginBottom: 40, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 24, elevation: 8 },
     googleBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, height: 56, marginBottom: 20, shadowColor: 'rgba(0,0,0,0.06)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 10, elevation: 3 },
     googleG: { fontSize: 20, fontWeight: '700', color: '#4285F4', marginRight: 10 },
     googleBtnText: { fontSize: 15, fontWeight: '600', color: '#1A202C' },
@@ -1183,7 +1183,7 @@ const styles = StyleSheet.create({
     fieldGroup: { marginBottom: 20 },
     label: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 8, marginLeft: 4 },
     inputWrapEnhanced: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, height: 56, paddingHorizontal: 16, shadowColor: 'rgba(0,0,0,0.02)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 4, elevation: 1 },
-    inputFocusedEnhanced: { borderColor: '#3A86FF', backgroundColor: '#FFFFFF', shadowColor: 'rgba(58,134,255,0.1)', shadowRadius: 8, elevation: 3 },
+    inputFocusedEnhanced: { borderColor: '#6366F1', backgroundColor: '#FFFFFF', shadowColor: 'rgba(58,134,255,0.1)', shadowRadius: 8, elevation: 3 },
     inputErrorEnhanced: { borderColor: '#EF4444', backgroundColor: '#FFF1F2' },
     inlineIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
     textPrefixStyle: { fontSize: 16, color: '#1E293B', fontWeight: '600', marginRight: 4 },
@@ -1196,18 +1196,18 @@ const styles = StyleSheet.create({
     strengthLabel: { fontSize: 11, fontWeight: '600' },
     reqWrap: { marginTop: -4, marginBottom: 12, marginLeft: 4 },
     reqItem: { fontSize: 12, marginBottom: 2 },
-    primaryBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0A2463', borderRadius: 20, height: 64, width: '100%', gap: 8, shadowColor: '#0A2463', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
+    primaryBtnEnhanced: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366F1', borderRadius: 100, height: 64, width: '100%', gap: 8, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
     primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
     bottomLink: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
     bottomLinkText: { fontSize: 14, color: '#64748B' },
-    bottomLinkAction: { fontSize: 14, fontWeight: '600', color: '#3A86FF' },
+    bottomLinkAction: { fontSize: 14, fontWeight: '600', color: '#6366F1' },
     verifyFieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' },
-    verifyBtnSmall: { backgroundColor: '#3A86FF', paddingHorizontal: 16, height: 44, borderRadius: 14, minWidth: 70, alignItems: 'center', justifyContent: 'center', marginTop: 12, shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+    verifyBtnSmall: { backgroundColor: '#6366F1', paddingHorizontal: 16, height: 44, borderRadius: 14, minWidth: 70, alignItems: 'center', justifyContent: 'center', marginTop: 12, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
     verifiedBtn: { backgroundColor: '#22C55E', shadowColor: '#22C55E' },
     verifyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },
     otpSubtext: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8 },
     resendRow: { alignItems: 'center', marginTop: 16, marginBottom: 24 },
-    resendAction: { color: '#3A86FF', fontSize: 14, fontWeight: '600' },
+    resendAction: { color: '#6366F1', fontSize: 14, fontWeight: '600' },
     timerText: { color: '#94A3B8', fontSize: 14 },
     attemptsText: { textAlign: 'center', marginTop: 12, fontSize: 12, color: '#94A3B8' },
     centerStepEnhanced: { alignItems: 'center', paddingTop: 10 },
@@ -1251,12 +1251,12 @@ const styles = StyleSheet.create({
     readyVisualWrap: { width: 180, height: 180, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
     readyIconGrid: { position: 'absolute', width: '100%', height: '100%' },
     readyIconBox: { position: 'absolute', width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
-    mainReadyCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12, borderWidth: 1, borderColor: '#F1F5F9' },
-    megaTitle: { fontSize: 32, fontWeight: '900', color: '#0A2463', textAlign: 'center', marginBottom: 8 },
+    mainReadyCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#4338CA', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.15, shadowRadius: 24, elevation: 12, borderWidth: 1, borderColor: '#F1F5F9' },
+    megaTitle: { fontSize: 32, fontWeight: '900', color: '#4338CA', textAlign: 'center', marginBottom: 8 },
     megaSubtitle: { fontSize: 16, color: '#64748B', textAlign: 'center', fontWeight: '500', marginBottom: 32 },
     welcomeCard: { paddingHorizontal: 20, marginBottom: 40 },
     welcomeText: { fontSize: 15, color: '#475569', textAlign: 'center', lineHeight: 24 },
-    dashboardBtn: { width: '100%', borderRadius: 20, overflow: 'hidden', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
+    dashboardBtn: { width: '100%', borderRadius: 20, overflow: 'hidden', shadowColor: '#4338CA', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
     dashboardBtnGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 68, gap: 12, paddingHorizontal: 24 },
     dashboardBtnText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -1285,16 +1285,16 @@ const styles = StyleSheet.create({
     upiRow: { flexDirection: 'row', alignItems: 'center', padding: 16, backgroundColor: '#FAFBFC', borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
     upiIconBox: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 14, borderWidth: 1, borderColor: '#E2E8F0' },
     upiAppName: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1A202C' },
-    upiAction: { fontSize: 14, fontWeight: '600', color: '#3A86FF' },
+    upiAction: { fontSize: 14, fontWeight: '600', color: '#6366F1' },
     payDivider: { height: 1, backgroundColor: '#E2E8F0', marginVertical: 12 },
     payManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A202C', borderRadius: 12, height: 48 },
     payManualText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
     locationTitlePremium: { fontSize: 28, fontWeight: '800', color: '#1A1A1A', textAlign: 'center', marginBottom: 10 },
     locationSubtitlePremium: { fontSize: 15, fontWeight: '500', color: '#94A3B8', textAlign: 'center', lineHeight: 22, paddingHorizontal: 20 },
-    locationPrimaryBtn: { backgroundColor: '#3A86FF', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 58, borderRadius: 16, width: '100%', gap: 12, shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 6 },
+    locationPrimaryBtn: { backgroundColor: '#6366F1', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 58, borderRadius: 16, width: '100%', gap: 12, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 6 },
     locationPrimaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
     locationSecondaryBtn: { marginTop: 24, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-    locationSecondaryBtnText: { color: '#3A86FF', fontSize: 15, fontWeight: '700' },
+    locationSecondaryBtnText: { color: '#6366F1', fontSize: 15, fontWeight: '700' },
     locationSuccessToast: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F9FF', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, marginTop: 20, gap: 8, borderWidth: 1, borderColor: '#BAE6FD' },
     locationSuccessText: { color: '#0369A1', fontSize: 13, fontWeight: '600' },
     locationErrorText: { color: '#EF4444', fontSize: 13, fontWeight: '600', marginTop: 16, textAlign: 'center' },

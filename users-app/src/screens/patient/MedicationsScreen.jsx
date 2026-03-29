@@ -8,6 +8,14 @@ import { apiService } from '../../lib/api';
 const ACCENT_MAP = { morning: colors.success, afternoon: colors.warning, night: '#8B5CF6' };
 const TIME_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
 
+const FONT = {
+    regular: { fontFamily: 'Inter_400Regular' },
+    medium: { fontFamily: 'Inter_500Medium' },
+    semiBold: { fontFamily: 'Inter_600SemiBold' },
+    bold: { fontFamily: 'Inter_700Bold' },
+    heavy: { fontFamily: 'Inter_800ExtraBold' },
+};
+
 const TimePill = ({ type, timeStr }) => {
     let IconCmp, bg, color;
     if (type === 'morning') { IconCmp = Sunrise; bg = '#DCFCE7'; color = colors.success; }
@@ -139,41 +147,47 @@ export default function MedicationsScreen({ navigation }) {
 
     if (loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                 <ActivityIndicator size="large" color={colors.accent} />
-            </View>
+            </LinearGradient>
         );
     }
 
     if (patient?.subscription?.plan === 'free') {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
+            <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
                 <Pill size={48} color="#CBD5E1" style={{ marginBottom: 16 }} />
-                <Text style={{ fontSize: 20, fontWeight: '700', color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
+                <Text style={{ fontSize: 20, ...FONT.bold, color: '#1A202C', textAlign: 'center', marginBottom: 8 }}>Premium Feature</Text>
                 <Text style={{ fontSize: 15, color: '#64748B', textAlign: 'center', lineHeight: 22 }}>
                     Medication tracking and adherence insights are included in the Basic Plan. Upgrade on the Home screen to manage your daily schedule.
                 </Text>
-            </View>
+            </LinearGradient>
         );
     }
 
     return (
-        <View style={styles.container}>
-            <LinearGradient colors={['#0A2463', '#1E5FAD']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-                <View style={[styles.decorativeCircle, { top: -20, right: -20, opacity: 0.2 }]} />
-                <View style={[styles.decorativeCircle, { bottom: -40, left: -30, width: 180, height: 180, opacity: 0.1 }]} />
-                <Text style={styles.headerLabel}>CareCo</Text>
-                <Text style={styles.headerTitle}>Medication Schedule</Text>
-                <Pressable style={styles.bellBtn} onPress={() => navigation.navigate('Notifications')}>
-                    <Bell size={22} color="#FFFFFF" strokeWidth={2} />
-                </Pressable>
-            </LinearGradient>
+        <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={styles.container}>
+            <View style={[styles.headerWrap, { zIndex: 10, elevation: 10 }]}>
+        <Animated.View style={[styles.minimalHeader, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]}>
+            <View style={styles.mainHeaderRow}>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.headerLabel}>CARE RECORD</Text>
+                    <Text style={styles.headerTitle}>Medications</Text>
+                </View>
+                <View style={styles.headerRight}>
+                    <Pressable style={styles.headerBtn} onPress={() => navigation.navigate('Notifications')}>
+                        <Bell size={20} color={colors.primary} strokeWidth={2.5} />
+                    </Pressable>
+                </View>
+            </View>
+        </Animated.View>
+            </View>
 
             <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
 
                 {/* Adherence Summary */}
-                <Animated.View style={{ opacity: staggerAnims[0], transform: [{ scale: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
-                    <LinearGradient colors={['#0F172A', '#1E293B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.adherenceCardEnhanced}>
+                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ scale: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
+                    <View style={styles.adherenceCardEnhanced}>
                         <View style={styles.adherenceHeader}>
                             <View>
                                 <Text style={styles.adherenceTitle}>Weekly Adherence</Text>
@@ -193,11 +207,11 @@ export default function MedicationsScreen({ navigation }) {
                                 </View>
                             ))}
                         </View>
-                    </LinearGradient>
+                    </View>
                 </Animated.View>
 
                 {/* Schedule Sections */}
-                <Animated.View style={{ opacity: staggerAnims[1], transform: [{ translateY: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
+                <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     {/* Morning */}
                     {schedule.morning.length > 0 && (
                         <>
@@ -229,55 +243,54 @@ export default function MedicationsScreen({ navigation }) {
                     )}
                 </Animated.View>
             </ScrollView>
-        </View>
+        </LinearGradient>
     );
 
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
-    header: {
-        height: 140, borderBottomLeftRadius: 36, borderBottomRightRadius: 36,
-        alignItems: 'center', justifyContent: 'center',
-        paddingTop: Platform.OS === 'ios' ? 70 : 50, overflow: 'hidden',
-    },
-    decorativeCircle: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)' },
-    headerLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-    bellBtn: { position: 'absolute', right: 20, top: Platform.OS === 'ios' ? 70 : 50 },
+    container: { flex: 1, backgroundColor: 'transparent' },
+    headerWrap: { zIndex: 10 },
+    minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 24, backgroundColor: 'transparent' },
+    mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    headerLeft: { flex: 1 },
+    headerLabel: { fontSize: 13, ...FONT.bold, color: colors.primary, letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' },
+    headerTitle: { fontSize: 32, ...FONT.heavy, color: '#0F172A', letterSpacing: -1 },
+    headerRight: { flexDirection: 'row', alignItems: 'center' },
+    headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
 
     body: { flex: 1 },
     bodyContent: { paddingHorizontal: 20, paddingBottom: 110, paddingTop: 24 },
 
     adherenceCardEnhanced: {
-        borderRadius: 20, padding: 24, marginBottom: 28,
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 8,
+        backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24, marginBottom: 28,
+        shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 4,
     },
     adherenceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-    adherenceTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-    adherenceDesc: { fontSize: 13, color: '#94A3B8', fontWeight: '500' },
-    circularProgressMini: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(74,222,128,0.1)', alignItems: 'center', justifyContent: 'center' },
+    adherenceTitle: { fontSize: 18, ...FONT.heavy, color: '#1E293B', marginBottom: 4 },
+    adherenceDesc: { fontSize: 13, color: '#64748B', ...FONT.medium },
+    circularProgressMini: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center' },
 
     chartRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', marginTop: 8 },
     chartCol: { alignItems: 'center', flex: 1 },
-    chartBarBg: { width: 14, height: 60, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 7, overflow: 'hidden', justifyContent: 'flex-end' },
+    chartBarBg: { width: 14, height: 60, backgroundColor: '#F1F5F9', borderRadius: 7, overflow: 'hidden', justifyContent: 'flex-end' },
     chartBarFill: { width: '100%', borderRadius: 7 },
-    chartDayLabel: { fontSize: 11, color: '#64748B', marginTop: 10, fontWeight: '700', textTransform: 'uppercase' },
-    chartDayLabelToday: { color: '#3A86FF', fontWeight: '800' },
+    chartDayLabel: { fontSize: 11, color: '#64748B', marginTop: 10, ...FONT.bold, textTransform: 'uppercase' },
+    chartDayLabelToday: { color: '#6366F1', ...FONT.heavy },
 
     timeSectionRow: { marginBottom: 16, marginTop: 4 },
     timeBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, gap: 8 },
-    timeBadgeTxt: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeBadgeTxt: { fontSize: 13, ...FONT.heavy, textTransform: 'uppercase', letterSpacing: 0.5 },
 
-    medCard: { backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 3 },
+    medCard: { backgroundColor: '#FFFFFF', borderRadius: 28, marginBottom: 14, overflow: 'hidden', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 4 },
     medCardDimmed: { opacity: 0.6 },
     medAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 6 },
     medCardInner: { flexDirection: 'row', padding: 18, paddingLeft: 24, alignItems: 'center' },
     medIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
     medContent: { flex: 1 },
-    medTitle: { fontSize: 17, fontWeight: '800', color: '#1E293B' },
-    medSub: { fontSize: 14, color: '#64748B', marginTop: 4, fontWeight: '600' },
-    medInstructions: { fontSize: 12, color: '#94A3B8', marginTop: 4, fontStyle: 'italic', fontWeight: '500' },
+    medTitle: { fontSize: 17, ...FONT.heavy, color: '#1E293B' },
+    medSub: { fontSize: 14, color: '#64748B', marginTop: 4, ...FONT.semiBold },
+    medInstructions: { fontSize: 12, color: '#94A3B8', marginTop: 4, fontStyle: 'italic', ...FONT.medium },
     textStrikethrough: { textDecorationLine: 'line-through', color: '#94A3B8' },
     checkboxTouch: { padding: 8 },
 });

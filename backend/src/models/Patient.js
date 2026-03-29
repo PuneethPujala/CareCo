@@ -93,12 +93,6 @@ const PatientSchema = new mongoose.Schema(
         assigned_at: {
             type: Date, // when the current caller was assigned
         },
-        previous_callers: [
-            {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Caller',
-            },
-        ],
 
         // ── Scheduling / Time Slots ───────────────────
         timezone: {
@@ -164,6 +158,10 @@ const PatientSchema = new mongoose.Schema(
                     enum: ['active', 'managed', 'resolved'],
                     default: 'active',
                 },
+                severity: {
+                    type: String,
+                    enum: ['mild', 'moderate', 'severe'],
+                },
                 notes: { type: String },
             },
         ],
@@ -174,7 +172,17 @@ const PatientSchema = new mongoose.Schema(
                 notes: String,
             },
         ],
-        allergies: [String],
+        allergies: [
+            {
+                name: { type: String, required: true },
+                severity: {
+                    type: String,
+                    enum: ['mild', 'moderate', 'severe'],
+                    default: 'moderate',
+                },
+                reaction: { type: String }, // e.g. "Rash", "Anaphylaxis"
+            }
+        ],
         medications: [
             {
                 name: { type: String, required: true },
@@ -187,8 +195,8 @@ const PatientSchema = new mongoose.Schema(
                     },
                 ],
                 start_date: { type: Date },
-                end_date: { type: Date },   // null = ongoing
-                is_active: { type: Boolean, default: true },
+                end_date: { type: Date },   // NEW - null = ongoing
+                is_active: { type: Boolean, default: true }, // NEW
                 refill_due: { type: Date },
                 prescribed_by: String,
                 instructions: String,
@@ -211,6 +219,7 @@ const PatientSchema = new mongoose.Schema(
         },
         gp_name: { type: String, trim: true },
         gp_phone: { type: String, trim: true },
+        gp_email: { type: String, trim: true },
         blood_type: {
             type: String,
             enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown'],
@@ -237,6 +246,47 @@ const PatientSchema = new mongoose.Schema(
         },
         deactivated_at: { type: Date },
         deactivated_reason: { type: String },
+
+        // ── Lifestyle & Extensions ──────────────────
+        height_cm: { type: Number },
+        weight_kg: { type: Number },
+        smoking_status: {
+            type: String,
+            enum: ['never', 'former', 'current'],
+            default: 'never',
+        },
+        alcohol_use: {
+            type: String,
+            enum: ['none', 'occasional', 'moderate', 'heavy'],
+            default: 'none',
+        },
+        exercise_frequency: {
+            type: String,
+            enum: ['none', 'light', 'moderate', 'active'],
+            default: 'none',
+        },
+        vaccinations: [
+            {
+                name: { type: String, required: true },
+                date_given: { type: Date },
+                next_due: { type: Date },
+                administered_by: { type: String },
+            }
+        ],
+        appointments: [
+            {
+                title: { type: String, required: true },
+                doctor_name: { type: String },
+                location: { type: String },
+                date: { type: Date, required: true },
+                notes: { type: String },
+                status: {
+                    type: String,
+                    enum: ['upcoming', 'completed', 'cancelled'],
+                    default: 'upcoming',
+                },
+            }
+        ],
 
         // ── TTL / Cleanup ─────────────────────────────
         // Auto-deletes incomplete/unpaid patients after 24h

@@ -93,7 +93,7 @@ export default function VerifyEmailScreen({ navigation, route }) {
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#0A2463', '#3A86FF']} style={styles.hero}>
+            <LinearGradient colors={['#4338CA', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
                 <View style={styles.iconCircle}>
                     <Mail size={48} color="#FFFFFF" strokeWidth={1.5} />
                 </View>
@@ -103,7 +103,7 @@ export default function VerifyEmailScreen({ navigation, route }) {
 
             <View style={styles.formCard}>
                 <View style={styles.emailBadge}>
-                    <Mail size={16} color="#3A86FF" />
+                    <Mail size={16} color="#6366F1" />
                     <Text style={styles.emailText}>{email}</Text>
                 </View>
 
@@ -127,10 +127,10 @@ export default function VerifyEmailScreen({ navigation, route }) {
                     ) : (
                         <Pressable style={styles.resendBtn} onPress={handleResend} disabled={resending}>
                             {resending ? (
-                                <ActivityIndicator size="small" color="#3A86FF" />
+                                <ActivityIndicator size="small" color="#6366F1" />
                             ) : (
                                 <>
-                                    <RefreshCw size={16} color="#3A86FF" />
+                                    <RefreshCw size={16} color="#6366F1" />
                                     <Text style={styles.resendText}>Resend Verification Email</Text>
                                 </>
                             )}
@@ -152,21 +152,21 @@ export default function VerifyEmailScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8FAFC' },
-    hero: { height: 260, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, alignItems: 'center', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40 },
-    iconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    heroTitle: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-    heroSubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '500' },
-    formCard: { marginTop: -30, marginHorizontal: 20, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, shadowColor: 'rgba(0,0,0,0.1)', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 1, shadowRadius: 20, elevation: 8 },
-    emailBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#DBEAFE' },
-    emailText: { fontSize: 14, fontWeight: '600', color: '#1E40AF' },
-    instructions: { fontSize: 15, color: '#475569', lineHeight: 24, marginBottom: 24, textAlign: 'center' },
-    errorBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#FEE2E2' },
-    errorMsg: { color: '#DC2626', fontSize: 13, flex: 1, fontWeight: '500' },
-    resendRow: { alignItems: 'center', marginBottom: 24 },
-    timerText: { fontSize: 14, color: '#94A3B8', fontWeight: '500' },
-    resendBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-    resendText: { fontSize: 15, fontWeight: '700', color: '#3A86FF' },
-    attemptsText: { fontSize: 12, color: '#94A3B8', marginTop: 8 },
-    secondaryBtn: { alignItems: 'center', paddingVertical: 14, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16 },
-    secondaryBtnText: { fontSize: 15, fontWeight: '600', color: '#64748B' },
+    hero: { height: 280, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, alignItems: 'center', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40, overflow: 'hidden' },
+    iconCircle: { width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+    heroTitle: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+    heroSubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.75)', marginTop: 4, fontWeight: '500' },
+    formCard: { marginTop: -30, marginHorizontal: 20, backgroundColor: '#FFFFFF', borderRadius: 36, padding: 28, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.08, shadowRadius: 32, elevation: 12 },
+    emailBadge: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#EEF2FF', paddingVertical: 14, paddingHorizontal: 18, borderRadius: 20, marginBottom: 24, borderWidth: 1, borderColor: '#C7D2FE' },
+    emailText: { fontSize: 14, fontWeight: '700', color: '#4338CA' },
+    instructions: { fontSize: 15, color: '#475569', lineHeight: 24, marginBottom: 28, textAlign: 'center' },
+    errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFE4E6', borderRadius: 20, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FCA5A5' },
+    errorMsg: { color: '#991B1B', fontSize: 13, flex: 1, fontWeight: '600' },
+    resendRow: { alignItems: 'center', marginBottom: 28 },
+    timerText: { fontSize: 14, color: '#94A3B8', fontWeight: '600' },
+    resendBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
+    resendText: { fontSize: 15, fontWeight: '700', color: '#6366F1' },
+    attemptsText: { fontSize: 12, color: '#94A3B8', marginTop: 8, fontWeight: '500' },
+    secondaryBtn: { alignItems: 'center', paddingVertical: 16, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 100 },
+    secondaryBtnText: { fontSize: 15, fontWeight: '700', color: '#64748B' },
 });

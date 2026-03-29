@@ -1142,11 +1142,11 @@ const styles = StyleSheet.create({
     dateSection: {
         backgroundColor: '#FFFFFF', borderRadius: 24, padding: 18, marginBottom: 20,
         borderWidth: 1, borderColor: '#F1F5F9',
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 24, elevation: 8,
+        shadowColor: '#6366F1', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.06, shadowRadius: 24, elevation: 8,
     },
     dateToggle: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 18, padding: 5, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
     toggleBtn: { flex: 1, flexDirection: 'row', gap: 8, paddingVertical: 12, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    toggleBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3 },
+    toggleBtnActive: { backgroundColor: '#FFFFFF', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3 },
     dateToggleIcon: { opacity: 0.4 },
     dateToggleIconActive: { opacity: 1 },
     toggleTxt: { fontSize: 13, fontWeight: '700', color: '#64748B' },
@@ -1199,7 +1199,7 @@ const styles = StyleSheet.create({
     chartCard: {
         backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, marginBottom: 24,
         borderWidth: 1, borderColor: '#F1F5F9',
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 6,
+        shadowColor: '#6366F1', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.06, shadowRadius: 20, elevation: 6,
     },
     chartTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
     chartIconPill: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },

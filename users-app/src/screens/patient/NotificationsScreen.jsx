@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform, Pressable } from 'react-native';
-import { Search, Pill, CheckCheck, BellOff, Heart, MessageSquare } from 'lucide-react-native';
+import { X, Search, Pill, CheckCheck, BellOff, Heart, MessageSquare } from 'lucide-react-native';
 
 const C = {
   primary: '#6366F1',
@@ -39,8 +39,7 @@ export default function NotificationsScreen({ navigation }) {
       <View style={s.header}>
         <Text style={s.headerTitle}>Notification</Text>
         <Pressable style={s.searchBtn} onPress={() => navigation.goBack()}>
-          {/* I'll use the search icon like the image, though it acts as a go-back or search here */}
-          <Search size={22} color={C.dark} strokeWidth={2.5} />
+          <X size={22} color={C.dark} strokeWidth={2.5} />
         </Pressable>
       </View>
 

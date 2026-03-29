@@ -92,7 +92,7 @@ export default function WaitingScreen({ navigation, route }) {
                 {/* Waiting Card */}
                 <Animated.View style={[styles.waitingCard, { transform: [{ scale: pulseAnim }] }]}>
                     <LinearGradient
-                        colors={['#0A2463', '#1E5FAD']}
+                        colors={['#4338CA', '#38BDF8']}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.waitingGradient}
@@ -154,7 +154,7 @@ export default function WaitingScreen({ navigation, route }) {
                     {/* Stats Row */}
                     <View style={styles.statsCard}>
                         <LinearGradient
-                            colors={['#0A2463', '#1E5FAD']}
+                            colors={['#4338CA', '#38BDF8']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.statsGradient}
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'flex-start',
         backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
         marginHorizontal: 16, marginBottom: 12,
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 2 },
+        shadowColor: '#6366F1', shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
     },
     featureIconWrap: {

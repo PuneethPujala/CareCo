@@ -256,76 +256,64 @@ export default function PatientHomeScreen({ navigation }) {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={styles.container}>
-                <View style={styles.headerWrap}>
-                    <LinearGradient 
-                        colors={['#0A2463', '#1E5FAD']} 
-                        start={{ x: 0, y: 0 }} 
-                        end={{ x: 1, y: 1 }} 
-                        style={styles.headerGradient}
-                    >
-                        {/* More Layered Decorative Shapes */}
-                        <View style={[styles.decorativeCircle, { top: -30, right: -40, width: 200, height: 200, backgroundColor: 'rgba(59, 130, 246, 0.2)' }]} />
-                        <View style={[styles.decorativeCircle, { top: 40, left: -60, width: 160, height: 160, backgroundColor: 'rgba(37, 99, 235, 0.15)' }]} />
-                        <View style={[styles.decorativeCircle, { bottom: -60, right: 20, width: 120, height: 120, backgroundColor: 'rgba(96, 165, 250, 0.1)' }]} />
+            <View style={[styles.container, { position: 'relative' }]}>
+                <View style={[styles.headerWrap, { zIndex: 10, elevation: 10 }]}>
+                    <Animated.View style={[styles.minimalHeader, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]}>
+                        {/* Location at the very top */}
+                        <Pressable 
+                            onPress={() => navigation.navigate('LocationSearch')}
+                            style={({ pressed }) => [
+                                styles.locationPill,
+                                { opacity: pressed ? 0.8 : 1 }
+                            ]}
+                        >
+                            <View style={styles.locationIconBox}>
+                                <MapPin size={10} color="#FFFFFF" fill="#FFFFFF" />
+                            </View>
+                            <Text style={styles.locationLabel} numberOfLines={1}>
+                                {patient?.city || profile?.city || 'Detecting...'}
+                            </Text>
+                            <ChevronRight size={10} color={colors.primary} strokeWidth={3} />
+                        </Pressable>
 
-                        <Animated.View style={[styles.headerContent, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-15, 0] }) }] }]}>
-                            {/* Location at the very top */}
-                            <Pressable 
-                                onPress={() => navigation.navigate('LocationSearch')}
-                                style={({ pressed }) => [
-                                    styles.locationPill,
-                                    { opacity: pressed ? 0.8 : 1 }
-                                ]}
-                            >
-                                <View style={styles.locationIconBox}>
-                                    <MapPin size={10} color="#FFFFFF" fill="#FFFFFF" />
+                        {/* Main Row: Name, Bell, Avatar */}
+                        <View style={styles.mainHeaderRow}>
+                            <View style={styles.headerLeft}>
+                                <View style={styles.greetingGroupCompact}>
+                                    <Text style={styles.greetingGreeting}>{getGreeting()}</Text>
+                                    <Text style={styles.greetingNameCompact}>{displayName?.split(' ')[0] || 'User'}</Text>
                                 </View>
-                                <Text style={styles.locationLabel} numberOfLines={1}>
-                                    {patient?.city || profile?.city || 'Detecting...'}
-                                </Text>
-                                <ChevronRight size={10} color="rgba(255,255,255,0.6)" strokeWidth={3} />
-                            </Pressable>
+                            </View>
 
-                            {/* Main Row: Name, Bell, Avatar */}
-                            <View style={styles.mainHeaderRow}>
-                                <View style={styles.headerLeft}>
-                                    <View style={styles.greetingGroupCompact}>
-                                        <Text style={styles.greetingGreeting}>{getGreeting()}</Text>
-                                        <Text style={styles.greetingNameCompact}>{displayName?.split(' ')[0] || 'User'}</Text>
-                                    </View>
-                                </View>
-
-                                <View style={styles.headerRight}>
-                                    <Pressable 
-                                        style={styles.bellBtnGlass} 
-                                        onPress={() => navigation.navigate('Notifications')}
-                                    >
-                                        <Bell size={20} color="#FFFFFF" strokeWidth={2} />
-                                        <View style={styles.bellBadgePremium} />
-                                    </Pressable>
-                                    
-                                    <TouchableOpacity 
-                                        activeOpacity={0.8}
-                                        style={styles.avatarContainerPremium}
-                                        onPress={() => navigation.navigate('Profile')}
-                                    >
-                                        <View style={styles.avatarOuterRing}>
-                                            <View style={styles.avatarInnerPremium}>
-                                                <Text style={styles.avatarTxtPremium}>{displayName?.charAt(0) || 'U'}</Text>
-                                            </View>
+                            <View style={styles.headerRight}>
+                                <Pressable 
+                                    style={styles.bellBtnGlass} 
+                                    onPress={() => navigation.navigate('Notifications')}
+                                >
+                                    <Bell size={20} color={colors.primary} strokeWidth={2.5} />
+                                    <View style={styles.bellBadgePremium} />
+                                </Pressable>
+                                
+                                <TouchableOpacity 
+                                    activeOpacity={0.8}
+                                    style={styles.avatarContainerPremium}
+                                    onPress={() => navigation.navigate('Profile')}
+                                >
+                                    <View style={styles.avatarOuterRing}>
+                                        <View style={styles.avatarInnerPremium}>
+                                            <Text style={styles.avatarTxtPremium}>{displayName?.charAt(0) || 'U'}</Text>
                                         </View>
-                                    </TouchableOpacity>
-                                </View>
+                                    </View>
+                                </TouchableOpacity>
                             </View>
+                        </View>
 
-                            {/* Date Badge shifted to bottom or integrated if needed, keeping it subtle for height reduction */}
-                            <View style={styles.dateBadge}>
-                                <CalendarDays size={10} color="rgba(255,255,255,0.5)" />
-                                <Text style={styles.dateLabelCompact}>{dateStr}</Text>
-                            </View>
-                        </Animated.View>
-                    </LinearGradient>
+                        {/* Date Badge shifted to bottom or integrated if needed, keeping it subtle for height reduction */}
+                        <View style={styles.dateBadge}>
+                            <CalendarDays size={12} color="#94A3B8" />
+                            <Text style={styles.dateLabelCompact}>{dateStr}</Text>
+                        </View>
+                    </Animated.View>
                 </View>
 
             <ScrollView 
@@ -496,20 +484,7 @@ export default function PatientHomeScreen({ navigation }) {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#FFFFFF' },
 
-    headerGradient: {
-        paddingTop: Platform.OS === 'ios' ? 60 : 45,
-        paddingBottom: 28, 
-        paddingHorizontal: 20,
-        borderBottomLeftRadius: 40, 
-        borderBottomRightRadius: 40,
-        shadowColor: '#000', 
-        shadowOffset: { width: 0, height: 10 }, 
-        shadowOpacity: 0.2, 
-        shadowRadius: 15, 
-        elevation: 10,
-        overflow: 'hidden',
-    },
-    decorativeCircle: { position: 'absolute', borderRadius: 100 },
+    minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: 'transparent' },
 
     headerContent: { zIndex: 2 },
     mainHeaderRow: { 
@@ -526,68 +501,26 @@ const styles = StyleSheet.create({
     },
 
     locationPill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 22,
-        alignSelf: 'flex-start',
-        marginBottom: 10,
-        borderWidth: 1.5,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
+        flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 22, alignSelf: 'flex-start', marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0',
     },
     locationIconBox: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: '#3B82F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 6,
+        width: 16, height: 16, borderRadius: 8, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 6,
     },
-    locationLabel: { 
-        fontSize: 10, 
-        color: '#FFFFFF', 
-        fontWeight: '700', 
-        marginRight: 4,
-        letterSpacing: 0.2
-    },
+    locationLabel: { fontSize: 10, color: '#3B82F6', fontWeight: '800', marginRight: 4, letterSpacing: 0.2, textTransform: 'uppercase' },
 
     greetingGroupCompact: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-    greetingGreeting: { 
-        fontSize: 13, 
-        color: 'rgba(255, 255, 255, 0.7)', 
-        fontWeight: '600' 
-    },
-    greetingNameCompact: { 
-        fontSize: 26, 
-        fontWeight: '900', 
-        color: '#FFFFFF', 
-        letterSpacing: -0.5,
-    },
+    greetingGreeting: { fontSize: 12, color: colors.primary, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase' },
+    greetingNameCompact: { fontSize: 32, fontWeight: '900', color: '#0F172A', letterSpacing: -1 },
+
     dateBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-        marginTop: 2,
+        gap: 6,
+        marginTop: 6,
     },
-    dateLabelCompact: { 
-        fontSize: 11, 
-        color: 'rgba(255, 255, 255, 0.5)', 
-        fontWeight: '600' 
-    },
+    dateLabelCompact: { fontSize: 13, color: '#94A3B8', fontWeight: '700' },
 
-    bellBtnGlass: { 
-        width: 40, 
-        height: 40, 
-        borderRadius: 20, 
-        backgroundColor: 'rgba(255, 255, 255, 0.15)', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
+    bellBtnGlass: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
     bellBadgePremium: { 
         position: 'absolute', 
         top: 11, 
@@ -601,34 +534,14 @@ const styles = StyleSheet.create({
     },
 
     avatarContainerPremium: {
-        shadowColor: 'rgba(0,0,0,0.2)',
+        shadowColor: 'rgba(0,0,0,0.1)',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.2,
         shadowRadius: 5,
     },
-    avatarOuterRing: { 
-        width: 48, 
-        height: 48, 
-        borderRadius: 24, 
-        borderWidth: 1.5, 
-        borderColor: 'rgba(255, 255, 255, 0.3)', 
-        backgroundColor: 'rgba(255, 255, 255, 0.1)', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
-    },
-    avatarInnerPremium: { 
-        width: 38, 
-        height: 38, 
-        borderRadius: 19, 
-        backgroundColor: '#FFFFFF', 
-        alignItems: 'center', 
-        justifyContent: 'center' 
-    },
-    avatarTxtPremium: { 
-        fontSize: 16, 
-        fontWeight: '900', 
-        color: '#1E3A8A' 
-    },
+    avatarOuterRing: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
+    avatarInnerPremium: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+    avatarTxtPremium: { fontSize: 16, fontWeight: '900', color: colors.primaryDark },
 
     headerStatsRow: {
         flexDirection: 'row',

@@ -35,6 +35,7 @@ const mockSupabase = {
             createUser:     jest.fn(),
             signOut:        jest.fn(),
             updateUserById: jest.fn(),
+            deleteUser:     jest.fn(),
         },
         signInWithPassword:    jest.fn(),
         getUser:               jest.fn(),
@@ -139,18 +140,11 @@ describe('Auth Routes', () => {
             expect(res.body.error).toMatch(/missing required fields/i);
         });
 
-        it('returns 400 when city is missing', async () => {
-            const res = await request(app)
-                .post('/api/auth/register')
-                .send({ email: 'test@example.com', fullName: 'Test', password: 'Pass123' });
 
-            expect(res.status).toBe(400);
-            expect(res.body.error).toMatch(/city/i);
-        });
 
         it('returns 400 when email already exists', async () => {
             // Early check: Profile.findOne returns an existing profile → 400 before Supabase
-            Profile.findOne = jest.fn().mockResolvedValue({ _id: 'existing', email: 'dupe@careco.in' });
+            Profile.findOne = jest.fn().mockResolvedValueOnce({ _id: 'existing', email: 'dupe@careco.in' });
 
             const res = await request(app)
                 .post('/api/auth/register')

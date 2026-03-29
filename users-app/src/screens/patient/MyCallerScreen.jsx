@@ -251,35 +251,23 @@ export default function MyCallerScreen({ navigation }) {
   return (
     <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={s.container}>
       {/* ── Premium Gradient Header ── */}
-      <View style={s.headerWrap}>
-        <LinearGradient 
-          colors={['#4338CA', '#38BDF8']} 
-          start={{ x: 0, y: 0 }} 
-          end={{ x: 1, y: 1 }} 
-          style={s.headerGradient}
-        >
-          {/* Decorative Shapes */}
-          <View style={[s.decorativeCircle, { top: -60, right: -40, width: 250, height: 250, backgroundColor: 'rgba(255, 255, 255, 0.12)' }]} />
-          <View style={[s.decorativeCircle, { top: 60, left: -80, width: 200, height: 200, backgroundColor: 'rgba(255, 255, 255, 0.08)' }]} />
-          <View style={[s.decorativeCircle, { bottom: -80, right: 40, width: 160, height: 160, backgroundColor: 'rgba(255, 255, 255, 0.05)' }]} />
-
-          <Animated.View style={[s.headerContent, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-15, 0] }) }] }]}>
-            <View style={s.mainHeaderRow}>
-              <View style={s.headerLeft}>
-                <Text style={s.headerLabel}>SUPPORT</Text>
-                <Text style={s.headerTitle}>Care Team</Text>
-              </View>
-              <View style={s.headerRight}>
-                <TouchableOpacity 
-                  style={s.headerRightBtn}
-                  onPress={() => navigation.navigate('Notifications')}
-                >
-                  <Bell size={20} color={C.primary} strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
+      <View style={[s.headerWrap, { zIndex: 10, elevation: 10 }]}>
+        <Animated.View style={[s.minimalHeader, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]}>
+          <View style={s.mainHeaderRow}>
+            <View style={s.headerLeft}>
+              <Text style={s.headerLabel}>SUPPORT</Text>
+              <Text style={s.headerTitle}>Care Team</Text>
             </View>
-          </Animated.View>
-        </LinearGradient>
+            <View style={s.headerRight}>
+              <TouchableOpacity 
+                style={s.headerRightBtn}
+                onPress={() => navigation.navigate('Notifications')}
+              >
+                <Bell size={20} color={C.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Animated.View>
       </View>
 
       <ScrollView
@@ -638,45 +626,16 @@ const s = StyleSheet.create({
 
   // ── Header (Premium Gradient Design) ──
   headerWrap: { zIndex: 10 },
-  headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? 70 : 50,
-    paddingBottom: 48, 
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 40, 
-    borderBottomRightRadius: 40,
-    shadowColor: '#4338CA', 
-    shadowOffset: { width: 0, height: 16 }, 
-    shadowOpacity: 0.15, 
-    shadowRadius: 24, 
-    elevation: 8,
-    overflow: 'hidden',
-  },
-  decorativeCircle: { position: 'absolute', borderRadius: 100 },
-  headerContent: { zIndex: 2 },
-  mainHeaderRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    marginTop: 4
-  },
+  minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 24, backgroundColor: 'transparent' },
+  mainHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   headerLeft: { flex: 1 },
-  headerLabel: {
-    fontSize: 12, ...FONT.bold,
-    color: 'rgba(255, 255, 255, 0.7)',
-    letterSpacing: 1.5, marginBottom: 2,
-  },
-  headerTitle: { fontSize: 26, ...FONT.heavy, color: '#FFFFFF', letterSpacing: -0.5 },
-  headerRight: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    gap: 12 
-  },
+  headerLabel: { fontSize: 13, ...FONT.bold, color: C.primary, letterSpacing: 1.5, marginBottom: 4, textTransform: 'uppercase' },
+  headerTitle: { fontSize: 32, ...FONT.heavy, color: C.dark, letterSpacing: -1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerRightBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#FFF',
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF',
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#1A202C', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 10, elevation: 2,
+    borderWidth: 1, borderColor: '#E2E8F0',
   },
 
   // ── Body ──

@@ -89,7 +89,7 @@ export default function ResetPasswordScreen({ navigation }) {
                     <Text style={styles.successTitle}>Password Updated!</Text>
                     <Text style={styles.successSub}>Your password has been changed. You can now log in with your new password.</Text>
                     <Pressable style={styles.primaryBtn} onPress={handleGoToLogin}>
-                        <LinearGradient colors={['#3A86FF', '#1E5FAD']} style={styles.primaryBtnGradient}>
+                        <LinearGradient colors={['#6366F1', '#4338CA']} style={styles.primaryBtnGradient}>
                             <Text style={styles.primaryBtnText}>Continue to Login</Text>
                             <ChevronRight size={20} color="#FFFFFF" />
                         </LinearGradient>
@@ -103,7 +103,7 @@ export default function ResetPasswordScreen({ navigation }) {
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled" bounces={false}>
                 {/* Hero */}
-                <LinearGradient colors={['#0A2463', '#3A86FF']} style={styles.hero}>
+                <LinearGradient colors={['#4338CA', '#38BDF8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
                     <View style={styles.heroIconWrap}>
                         <ShieldCheck size={48} color="#FFFFFF" strokeWidth={1.5} />
                     </View>
@@ -134,7 +134,7 @@ export default function ResetPasswordScreen({ navigation }) {
                                 textContentType="newPassword"
                             />
                             <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={12}>
-                                {showPassword ? <Eye size={18} color="#3A86FF" /> : <EyeOff size={18} color="#94A3B8" />}
+                                {showPassword ? <Eye size={18} color="#6366F1" /> : <EyeOff size={18} color="#94A3B8" />}
                             </Pressable>
                         </View>
                     </View>
@@ -166,13 +166,13 @@ export default function ResetPasswordScreen({ navigation }) {
                                 textContentType="newPassword"
                             />
                             <Pressable onPress={() => setShowConfirm(!showConfirm)} hitSlop={12}>
-                                {showConfirm ? <Eye size={18} color="#3A86FF" /> : <EyeOff size={18} color="#94A3B8" />}
+                                {showConfirm ? <Eye size={18} color="#6366F1" /> : <EyeOff size={18} color="#94A3B8" />}
                             </Pressable>
                         </View>
                     </View>
 
                     <Pressable style={[styles.primaryBtn, loading && { opacity: 0.7 }]} onPress={handleResetPassword} disabled={loading}>
-                        <LinearGradient colors={['#3A86FF', '#1E5FAD']} style={styles.primaryBtnGradient}>
+                        <LinearGradient colors={['#6366F1', '#4338CA']} style={styles.primaryBtnGradient}>
                             {loading ? (
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
@@ -191,25 +191,25 @@ export default function ResetPasswordScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8FAFC' },
-    hero: { height: 260, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, alignItems: 'center', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40 },
-    heroIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
-    heroTitle: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-    heroSubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '500' },
-    formCard: { marginTop: -30, marginHorizontal: 20, backgroundColor: '#FFFFFF', borderRadius: 24, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 30, shadowColor: 'rgba(0,0,0,0.1)', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 1, shadowRadius: 20, elevation: 8 },
-    errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: '#FEE2E2' },
-    errorMsg: { color: '#DC2626', fontSize: 13, flex: 1, fontWeight: '500' },
+    hero: { height: 280, borderBottomLeftRadius: 40, borderBottomRightRadius: 40, alignItems: 'center', justifyContent: 'center', paddingTop: Platform.OS === 'ios' ? 60 : 40, overflow: 'hidden' },
+    heroIconWrap: { width: 80, height: 80, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+    heroTitle: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
+    heroSubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.75)', marginTop: 4, fontWeight: '500' },
+    formCard: { marginTop: -30, marginHorizontal: 20, backgroundColor: '#FFFFFF', borderRadius: 36, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 30, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.08, shadowRadius: 32, elevation: 12 },
+    errorBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFE4E6', borderRadius: 20, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#FCA5A5' },
+    errorMsg: { color: '#991B1B', fontSize: 13, flex: 1, fontWeight: '600' },
     fieldGroup: { marginBottom: 20 },
-    label: { fontSize: 13, fontWeight: '700', color: '#475569', marginBottom: 8, marginLeft: 4 },
-    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 16, height: 56, paddingHorizontal: 16 },
-    textInput: { flex: 1, fontSize: 15, color: '#1E293B', fontWeight: '500' },
-    reqWrap: { marginTop: -8, marginBottom: 20, marginLeft: 4, gap: 4 },
-    reqItem: { fontSize: 12, color: '#94A3B8' },
-    reqMet: { color: '#22C55E', fontWeight: '600' },
-    primaryBtn: { borderRadius: 20, height: 64, overflow: 'hidden', shadowColor: '#3A86FF', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 6, marginTop: 12 },
+    label: { fontSize: 13, fontWeight: '700', color: '#94A3B8', marginBottom: 10, marginLeft: 2, letterSpacing: 0.5 },
+    inputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#F1F5F9', borderRadius: 20, height: 64, paddingHorizontal: 16 },
+    textInput: { flex: 1, fontSize: 16, color: '#0F172A', fontWeight: '600' },
+    reqWrap: { marginTop: -8, marginBottom: 20, marginLeft: 4, gap: 6 },
+    reqItem: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+    reqMet: { color: '#22C55E', fontWeight: '700' },
+    primaryBtn: { borderRadius: 100, height: 64, overflow: 'hidden', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10, marginTop: 12 },
     primaryBtnGradient: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-    primaryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    primaryBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
     successCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
     successCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center', marginBottom: 24, borderWidth: 1, borderColor: '#DCFCE7' },
-    successTitle: { fontSize: 28, fontWeight: '800', color: '#166534', marginBottom: 12 },
+    successTitle: { fontSize: 28, fontWeight: '800', color: '#166534', marginBottom: 12, letterSpacing: -0.5 },
     successSub: { fontSize: 16, color: '#475569', textAlign: 'center', lineHeight: 24, marginBottom: 40 },
 });

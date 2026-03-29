@@ -147,7 +147,7 @@ export default function SplashScreen({ navigation, onFinish }) {
     const textTranslateY = textAnim.interpolate({ inputRange: [0, 1], outputRange: [25, 0] });
 
     return (
-        <LinearGradient colors={['#0F172A', '#1E3A8A', '#2563EB']} style={styles.container}>
+        <LinearGradient colors={['#0F172A', '#4338CA', '#6366F1']} style={styles.container}>
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgFade }]} pointerEvents="none" collapsable={false}>
                 <BackgroundParticles />
             </Animated.View>
@@ -214,7 +214,7 @@ export default function SplashScreen({ navigation, onFinish }) {
                         <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 200 200" pointerEvents="none" style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
                             <AnimatedPath
                                 d="M 50 100 L 75 100 L 85 75 L 100 135 L 115 85 L 125 100 L 150 100"
-                                stroke="#1E3A8A" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"
+                                stroke="#4338CA" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"
                                 fill="none" strokeDasharray="220" strokeDashoffset={pulseDashOffset}
                             />
                         </Svg>
@@ -245,6 +245,6 @@ const styles = StyleSheet.create({
     },
     textContainer: { alignItems: 'center', position: 'absolute', bottom: 100 },
     title: { fontSize: 44, fontWeight: '900', color: '#FFFFFF', letterSpacing: -2 },
-    titleAccent: { color: '#93C5FD' },
-    tagline: { fontSize: 15, color: '#DBEAFE', fontWeight: '600', marginTop: 12, letterSpacing: 1, opacity: 0.85 },
+    titleAccent: { color: '#A5B4FC' },
+    tagline: { fontSize: 15, color: '#C7D2FE', fontWeight: '600', marginTop: 12, letterSpacing: 1, opacity: 0.85 },
 });

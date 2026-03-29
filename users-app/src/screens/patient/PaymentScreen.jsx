@@ -73,7 +73,7 @@ export default function PaymentScreen({ navigation, route }) {
         <View style={styles.container}>
             {/* Header */}
             <LinearGradient
-                colors={plan.gradient || ['#3A86FF', '#1E5FAD']}
+                colors={plan.gradient || ['#6366F1', '#4338CA']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
@@ -196,9 +196,9 @@ const styles = StyleSheet.create({
     body: { flex: 1, padding: 16 },
 
     summaryCard: {
-        backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20,
+        backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20,
         marginBottom: 28,
-        shadowColor: '#0A2463', shadowOffset: { width: 0, height: 4 },
+        shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.06, shadowRadius: 12, elevation: 4,
     },
     summaryRow: {

@@ -77,13 +77,47 @@ async function subscribeAndSeedDemoData(patient) {
         { event: 'Diagnosed with Type 2 Diabetes', date: new Date('2018-01-15'), notes: 'Started on Metformin protocol.' },
         { event: 'Started BP Medication', date: new Date('2020-06-10'), notes: 'Amlodipine 5mg daily.' },
     ];
-    patient.allergies = ['Penicillin', 'Peanuts'];
+    patient.allergies = [
+        { name: 'Penicillin', severity: 'severe', reaction: 'Anaphylaxis' },
+        { name: 'Peanuts', severity: 'moderate', reaction: 'Hives' },
+    ];
     patient.medications = [
         { name: 'Metformin', dosage: '500mg', frequency: 'daily', times: ['morning'], prescribed_by: 'Dr. Reddy', instructions: 'Take with food' },
         { name: 'Amlodipine', dosage: '5mg', frequency: 'daily', times: ['afternoon'], prescribed_by: 'Dr. Rao', instructions: 'Take after lunch' },
         { name: 'Atorvastatin', dosage: '10mg', frequency: 'daily', times: ['night'], prescribed_by: 'Dr. Reddy', instructions: 'Take before sleep' },
     ];
-    patient.emergency_contact = { name: 'Ramesh Kumar', phone: '+919123456789', relation: 'Son' };
+
+    patient.vaccinations = [
+        { name: 'COVID-19 (Covishield)', date_given: new Date('2021-05-10'), next_due: null, administered_by: 'Govt. Health Centre' },
+        { name: 'Influenza', date_given: new Date('2024-10-01'), next_due: new Date('2025-10-01'), administered_by: 'Dr. Reddy' },
+    ];
+    
+    patient.appointments = [
+        {
+            title: 'Diabetes Review',
+            doctor_name: 'Dr. Reddy',
+            location: 'Apollo Hospital, Hyderabad',
+            date: new Date(Date.now() + 7 * 86400000), // 7 days from now
+            status: 'upcoming',
+        },
+        {
+            title: 'BP Follow-up',
+            doctor_name: 'Dr. Rao',
+            location: 'Care Clinic, Banjara Hills',
+            date: new Date(Date.now() + 14 * 86400000),
+            status: 'upcoming',
+        },
+    ];
+
+    patient.smoking_status = 'never';
+    patient.alcohol_use = 'none';
+    patient.exercise_frequency = 'light';
+    patient.height_cm = 165;
+    patient.weight_kg = 72;
+
+    patient.gp_name = 'Dr. Anand Reddy';
+    patient.gp_phone = '+914023456789';
+    patient.gp_email = 'dr.reddy@apollohyd.in';
 
     await patient.save();
 
@@ -355,10 +389,10 @@ router.get('/me', authenticate, async (req, res) => {
  */
 router.put('/me', authenticate, async (req, res) => {
     try {
-        const { name, city } = req.body;
+        const { name, city, date_of_birth } = req.body;
         const patient = await Patient.findOneAndUpdate(
             { supabase_uid: req.user.id },
-            { $set: { name, city } },
+            { $set: { name, city, date_of_birth } },
             { new: true }
         );
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -601,6 +635,269 @@ router.get('/me/medications', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/users/patients/me/profile
+ * Returns a structured health profile
+ */
+router.get('/me/profile', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        
+        const upcomingAppointments = (patient.appointments || [])
+            .filter(a => a.status === 'upcoming')
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        const activeMedications = (patient.medications || []).filter(m => m.is_active !== false);
+
+        res.json({
+            conditions: patient.conditions || [],
+            allergies: patient.allergies || [],
+            medical_history: patient.medical_history || [],
+            medications: activeMedications,
+            vaccinations: patient.vaccinations || [],
+            appointments: upcomingAppointments,
+            lifestyle: {
+                smoking_status: patient.smoking_status,
+                alcohol_use: patient.alcohol_use,
+                exercise_frequency: patient.exercise_frequency,
+                height_cm: patient.height_cm,
+                weight_kg: patient.weight_kg,
+                blood_type: patient.blood_type,
+                mobility_level: patient.mobility_level,
+            },
+            gp: {
+                name: patient.gp_name,
+                phone: patient.gp_phone,
+                email: patient.gp_email,
+            },
+            age: patient.age,
+        });
+    } catch (error) {
+        console.error('Get structured profile error:', error);
+        res.status(500).json({ error: 'Failed to get profile' });
+    }
+});
+
+// DEV TEMP: Seed existing profiles with health data
+router.get('/dev/seed-health', async (req, res) => {
+    try {
+        const patients = await Patient.find();
+        for (let patient of patients) {
+            patient.date_of_birth = new Date('1950-06-15');
+            patient.conditions = [
+                { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'managed', severity: 'moderate' },
+                { name: 'Hypertension', diagnosed_on: new Date('2020-03-10'), status: 'active', severity: 'moderate' }
+            ];
+            patient.allergies = [
+                { name: 'Penicillin', severity: 'severe', reaction: 'Anaphylaxis' },
+                { name: 'Peanuts', severity: 'moderate', reaction: 'Hives' }
+            ];
+            patient.vaccinations = [
+                { name: 'COVID-19 (Covishield)', date_given: new Date('2021-05-10'), next_due: null, administered_by: 'Govt. Health Centre' },
+                { name: 'Influenza', date_given: new Date('2024-10-01'), next_due: new Date('2025-10-01'), administered_by: 'Dr. Reddy' },
+            ];
+            patient.appointments = [
+                { title: 'Diabetes Review', doctor_name: 'Dr. Reddy', location: 'Apollo Hospital', date: new Date(Date.now() + 7 * 86400000), status: 'upcoming' }
+            ];
+            patient.smoking_status = 'never';
+            patient.alcohol_use = 'none';
+            patient.exercise_frequency = 'light';
+            patient.height_cm = 165;
+            patient.weight_kg = 72;
+            patient.gp_name = 'Dr. Anand Reddy';
+            patient.gp_phone = '+914023456789';
+            patient.gp_email = 'dr.reddy@apollohyd.in';
+            await patient.save();
+        }
+        res.json({ message: 'Seeded successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/conditions
+ * Add or update a condition
+ */
+router.put('/me/conditions', authenticate, async (req, res) => {
+    try {
+        const { _id, name, diagnosed_on, status, severity, notes } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.conditions.id(_id);
+            if (item) item.set({ name, diagnosed_on, status, severity, notes });
+        } else {
+            patient.conditions.push({ name, diagnosed_on, status, severity, notes });
+        }
+        await patient.save();
+        res.json({ conditions: patient.conditions });
+    } catch (error) {
+        console.error('Update conditions error:', error);
+        res.status(500).json({ error: 'Failed to update conditions' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/allergies
+ * Add or update an allergy
+ */
+router.put('/me/allergies', authenticate, async (req, res) => {
+    try {
+        const { _id, name, severity, reaction } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.allergies.id(_id);
+            if (item) item.set({ name, severity, reaction });
+        } else {
+            patient.allergies.push({ name, severity, reaction });
+        }
+        await patient.save();
+        res.json({ allergies: patient.allergies });
+    } catch (error) {
+        console.error('Update allergies error:', error);
+        res.status(500).json({ error: 'Failed to update allergies' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/appointments
+ * Add or update an appointment
+ */
+router.put('/me/appointments', authenticate, async (req, res) => {
+    try {
+        const { _id, title, doctor_name, location, date, status, notes } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.appointments.id(_id);
+            if (item) item.set({ title, doctor_name, location, date, status, notes });
+        } else {
+            patient.appointments.push({ title, doctor_name, location, date, status: status || 'upcoming', notes });
+        }
+        await patient.save();
+        res.json({ appointments: patient.appointments });
+    } catch (error) {
+        console.error('Update appointments error:', error);
+        res.status(500).json({ error: 'Failed to update appointments' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/vaccinations
+ * Add or update a vaccination
+ */
+router.put('/me/vaccinations', authenticate, async (req, res) => {
+    try {
+        const { _id, name, date_given, next_due, administered_by } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.vaccinations.id(_id);
+            if (item) item.set({ name, date_given, next_due, administered_by });
+        } else {
+            patient.vaccinations.push({ name, date_given, next_due, administered_by });
+        }
+        await patient.save();
+        res.json({ vaccinations: patient.vaccinations });
+    } catch (error) {
+        console.error('Update vaccinations error:', error);
+        res.status(500).json({ error: 'Failed to update vaccinations' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/lifestyle
+ * Update lifestyle info
+ */
+router.put('/me/lifestyle', authenticate, async (req, res) => {
+    try {
+        const { smoking_status, alcohol_use, exercise_frequency, height_cm, weight_kg, blood_type, mobility_level } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { $set: { smoking_status, alcohol_use, exercise_frequency, height_cm, weight_kg, blood_type, mobility_level } },
+            { new: true }
+        );
+        res.json({ message: 'Lifestyle updated successfully' });
+    } catch (error) {
+        console.error('Update lifestyle error:', error);
+        res.status(500).json({ error: 'Failed to update lifestyle' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/medications
+ * Add or update a medication
+ */
+router.put('/me/medications', authenticate, async (req, res) => {
+    try {
+        const { _id, name, dosage, frequency, times, start_date, end_date, is_active, instructions, prescribed_by } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.medications.id(_id);
+            if (item) item.set({ name, dosage, frequency, times, start_date, end_date, is_active, instructions, prescribed_by });
+        } else {
+            patient.medications.push({ name, dosage, frequency, times, start_date, end_date, is_active, instructions, prescribed_by });
+        }
+        await patient.save();
+        res.json({ medications: patient.medications });
+    } catch (error) {
+        console.error('Update medications error:', error);
+        res.status(500).json({ error: 'Failed to update medications' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/medical-history
+ * Add or update a medical history event
+ */
+router.put('/me/medical-history', authenticate, async (req, res) => {
+    try {
+        const { _id, event, date, notes } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        if (_id) {
+            const item = patient.medical_history.id(_id);
+            if (item) item.set({ event, date, notes });
+        } else {
+            patient.medical_history.push({ event, date, notes });
+        }
+        await patient.save();
+        res.json({ medical_history: patient.medical_history });
+    } catch (error) {
+        console.error('Update medical history error:', error);
+        res.status(500).json({ error: 'Failed to update medical history' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/primary-doctor
+ * Update Primary Doctor details
+ */
+router.put('/me/primary-doctor', authenticate, async (req, res) => {
+    try {
+        const { gp_name, gp_phone, gp_email } = req.body;
+        const patient = await Patient.findOneAndUpdate(
+            { supabase_uid: req.user.id },
+            { $set: { gp_name, gp_phone, gp_email } },
+            { new: true }
+        );
+        res.json({ message: 'Primary Doctor updated successfully' });
+    } catch (error) {
+        console.error('Update primary doctor error:', error);
+        res.status(500).json({ error: 'Failed to update primary doctor' });
+    }
+});
+
+/**
  * POST /api/users/patients/me/flag-issue
  * Patient flags a missed call or complaint
  */
@@ -706,6 +1003,35 @@ router.get('/me/vitals', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Get vitals error:', error);
         res.status(500).json({ error: 'Failed to fetch vitals history' });
+    }
+});
+
+/**
+ * DELETE /api/users/patients/me/:collection/:id
+ * Generic delete route for any array collections (conditions, allergies, etc.)
+ */
+router.delete('/me/:collection/:id', authenticate, async (req, res) => {
+    try {
+        const { collection, id } = req.params;
+        const validCollections = ['conditions', 'allergies', 'appointments', 'vaccinations', 'medications', 'medical_history'];
+        
+        if (!validCollections.includes(collection)) {
+            return res.status(400).json({error: 'Invalid collection specified'});
+        }
+        
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+        
+        patient[collection] = patient[collection].filter(
+            item => item._id && item._id.toString() !== id.toString()
+        );
+        
+        await patient.save();
+        
+        res.json({ [collection]: patient[collection], message: 'Item deleted successfully' });
+    } catch (error) {
+        console.error(`Delete ${req.params.collection} error:`, error);
+        res.status(500).json({ error: 'Failed to delete item' });
     }
 });
 
