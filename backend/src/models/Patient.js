@@ -239,6 +239,14 @@ const PatientSchema = new mongoose.Schema(
             enum: ['full', 'limited', 'wheelchair', 'bedridden'],
             default: 'full',
         },
+        push_notifications_enabled: {
+            type: Boolean,
+            default: true,
+        },
+        medication_reminders_enabled: {
+            type: Boolean,
+            default: true,
+        },
 
         // ── Notes & Flags ─────────────────────────────
         notes: { type: String },
