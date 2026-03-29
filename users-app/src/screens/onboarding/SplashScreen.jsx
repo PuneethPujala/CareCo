@@ -21,7 +21,7 @@ const PREMIUM_HEART = "M 100 170 C 100 170 20 115 20 65 C 20 30 55 15 85 40 C 10
 
 // ─── Background Particles ───
 const BackgroundParticles = () => (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none" collapsable={false}>
         {[...Array(30)].map((_, i) => <Particle key={i} />)}
     </View>
 );
@@ -148,17 +148,17 @@ export default function SplashScreen({ navigation, onFinish }) {
 
     return (
         <LinearGradient colors={['#0F172A', '#4338CA', '#6366F1']} style={styles.container}>
-            <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgFade }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgFade }]} pointerEvents="none" collapsable={false}>
                 <BackgroundParticles />
             </Animated.View>
 
-            <Animated.View style={[styles.mainWrapper, { opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }]} {...(Platform.OS !== 'web' && { collapsable: false })}>
+            <Animated.View style={[styles.mainWrapper, { opacity: screenOpacity, transform: [{ translateY: screenTranslateY }] }]} collapsable={false}>
 
                 {/* 1. LAYER: Nodes */}
                 <Animated.View
                     style={[StyleSheet.absoluteFill, styles.center, { opacity: networkOpacity, transform: [{ scale: networkGlobalScale }] }]}
                     pointerEvents="none"
-                    {...(Platform.OS !== 'web' && { collapsable: false })}
+                    collapsable={false}
                 >
                     {isReady && NODES.map(node => (
                         <Animated.View
@@ -177,14 +177,14 @@ export default function SplashScreen({ navigation, onFinish }) {
                 </Animated.View>
 
                 {/* 2. LAYER: Bloom */}
-                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: flareOpacity, transform: [{ scale: flareScale }] }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: flareOpacity, transform: [{ scale: flareScale }] }]} pointerEvents="none" collapsable={false}>
                     <View style={styles.flare} />
                 </Animated.View>
 
                 {/* 3. LAYER: Heart */}
-                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: heartOpacity, transform: [{ scale: heartScale }] }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: heartOpacity, transform: [{ scale: heartScale }] }]} pointerEvents="none" collapsable={false}>
                     {isReady && (
-                        <View style={styles.heartShadowContainer} {...(Platform.OS !== 'web' && { collapsable: false })}>
+                        <View style={styles.heartShadowContainer} collapsable={false}>
                             <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 200 200" pointerEvents="none" style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
                                 <Path d={PREMIUM_HEART} fill="#FFFFFF" />
                             </Svg>
@@ -193,14 +193,14 @@ export default function SplashScreen({ navigation, onFinish }) {
                 </Animated.View>
 
                 {/* 4. LAYER: Silhouettes */}
-                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: silOpacity, transform: [{ translateX: cgTranslateX }, { scale: silScale }] }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: silOpacity, transform: [{ translateX: cgTranslateX }, { scale: silScale }] }]} pointerEvents="none" collapsable={false}>
                     {isReady && (
                         <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 200 200" pointerEvents="none" style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
                             <Path d="M 35 150 C 35 130 45 120 55 120 C 65 120 75 130 75 150 Z M 55 85 A 14 14 0 1 0 55 113 A 14 14 0 1 0 55 85" fill="#FFFFFF" opacity="0.9" />
                         </Svg>
                     )}
                 </Animated.View>
-                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: silOpacity, transform: [{ translateX: ptTranslateX }, { scale: silScale }] }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: silOpacity, transform: [{ translateX: ptTranslateX }, { scale: silScale }] }]} pointerEvents="none" collapsable={false}>
                     {isReady && (
                         <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 200 200" pointerEvents="none" style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
                             <Path d="M 125 150 C 125 130 135 120 145 120 C 155 120 165 130 165 150 Z M 145 90 A 12 12 0 1 0 145 114 A 12 12 0 1 0 145 90" fill="#FFFFFF" opacity="0.9" />
@@ -209,7 +209,7 @@ export default function SplashScreen({ navigation, onFinish }) {
                 </Animated.View>
 
                 {/* 5. LAYER: Pulse */}
-                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: pulseFinalOpacity }]} pointerEvents="none" {...(Platform.OS !== 'web' && { collapsable: false })}>
+                <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: pulseFinalOpacity }]} pointerEvents="none" collapsable={false}>
                     {isReady && (
                         <Svg width={LOGO_SIZE} height={LOGO_SIZE} viewBox="0 0 200 200" pointerEvents="none" style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
                             <AnimatedPath
@@ -222,7 +222,7 @@ export default function SplashScreen({ navigation, onFinish }) {
                 </Animated.View>
             </Animated.View>
 
-            <Animated.View style={[styles.textContainer, { opacity: textOpacity, transform: [{ translateY: textTranslateY }] }]} {...(Platform.OS !== 'web' && { collapsable: false })}>
+            <Animated.View style={[styles.textContainer, { opacity: textOpacity, transform: [{ translateY: textTranslateY }] }]} collapsable={false}>
                 <Text style={styles.title}>Care<Text style={styles.titleAccent}>Co</Text></Text>
                 <Text style={styles.tagline}>Leading the Future of Compassionate Care</Text>
             </Animated.View>
