@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
     View, Text, StyleSheet, ScrollView, Platform, Pressable,
     ActivityIndicator, TextInput, KeyboardAvoidingView, Dimensions, Animated,
-    useWindowDimensions, Modal,
+    useWindowDimensions, Modal, DeviceEventEmitter
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -254,6 +254,14 @@ export default function VitalsHistoryScreen({ navigation }) {
         return () => clearTimeout(debounceRef.current);
     }, [fetchAllData]);
 
+    useEffect(() => {
+        const sub = DeviceEventEmitter.addListener('VITALS_UPDATED', () => {
+            lastRequestRef.current = 0;
+            fetchAllData();
+        });
+        return () => sub.remove();
+    }, [fetchAllData]);
+
     // ─── Chart labels ───────────────────────────────────────────
     const chartLabels = useMemo(() => {
         if (!vitals.length) return [];
@@ -292,6 +300,7 @@ export default function VitalsHistoryScreen({ navigation }) {
             });
             setIsLogging(false);
             setFormValues({ heart_rate: '', systolic: '', diastolic: '', oxygen_saturation: '', hydration: '' });
+            DeviceEventEmitter.emit('VITALS_UPDATED');
             fetchAllData();
         } catch (err) {
             setFormError(handleAxiosError(err));

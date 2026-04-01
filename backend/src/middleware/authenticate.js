@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const Profile = require('../models/Profile');
+const Patient = require('../models/Patient');
 const AuditLog = require('../models/AuditLog');
 
 const supabase = createClient(
@@ -8,7 +9,7 @@ const supabase = createClient(
     {
         auth: {
             autoRefreshToken: false,
-            persistSession:   false,
+            persistSession: false,
         },
     }
 );
@@ -25,7 +26,7 @@ const authenticate = async (req, res, next) => {
         if (!authHeader?.startsWith('Bearer ')) {
             return res.status(401).json({
                 error: 'Missing or invalid Authorization header',
-                code:  'MISSING_AUTH_HEADER',
+                code: 'MISSING_AUTH_HEADER',
             });
         }
 
@@ -35,27 +36,27 @@ const authenticate = async (req, res, next) => {
 
         if (error || !user) {
             await AuditLog.createLog({
-                supabaseUid:  'anonymous',
-                action:       'login_failed',
+                supabaseUid: 'anonymous',
+                action: 'login_failed',
                 resourceType: 'system',
-                ipAddress:    req.ip,
-                userAgent:    req.headers['user-agent'],
-                outcome:      'failure',
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                outcome: 'failure',
                 details: {
-                    reason:      error?.message || 'Invalid token',
+                    reason: error?.message || 'Invalid token',
                     tokenPrefix: token.substring(0, 10) + '...',
                 },
             });
 
             return res.status(401).json({
                 error: 'Invalid or expired token',
-                code:  'INVALID_TOKEN',
+                code: 'INVALID_TOKEN',
             });
         }
 
         let profile = await Profile.findOne({
             supabaseUid: user.id,
-            isActive:    true,
+            isActive: true,
         }).populate('organizationId', 'name city');
 
         // Auto-heal Supabase UID mismatch if user was recreated in Supabase but their MongoDB profile remains
@@ -73,30 +74,56 @@ const authenticate = async (req, res, next) => {
         }
 
         if (!profile) {
+            // ── Patient fallback ──────────────────────────
+            let patient = await Patient.findOne({
+                supabase_uid: user.id,
+                is_active: true,
+            });
+
+            // Auto-heal Patient UID mismatch by email
+            if (!patient && user.email) {
+                const emailPatient = await Patient.findOne({
+                    email: user.email.toLowerCase().trim(),
+                    is_active: true,
+                });
+                if (emailPatient) {
+                    emailPatient.supabase_uid = user.id;
+                    await emailPatient.save();
+                    patient = emailPatient;
+                    console.log(`Auto-healed supabase_uid for patient: ${patient.email}`);
+                }
+            }
+
+            if (patient) {
+                profile = patient; // attach Patient doc as req.profile
+            }
+        }
+
+        if (!profile) {
             return res.status(403).json({
                 error: 'No account found. Please sign up first.',
-                code:  'PROFILE_NOT_FOUND',
+                code: 'PROFILE_NOT_FOUND',
             });
         }
 
         if (profile.isLocked) {
             await AuditLog.createLog({
-                supabaseUid:  user.id,
-                action:       'login_failed',
+                supabaseUid: user.id,
+                action: 'login_failed',
                 resourceType: 'profile',
-                resourceId:   profile._id,
-                ipAddress:    req.ip,
-                userAgent:    req.headers['user-agent'],
-                outcome:      'failure',
+                resourceId: profile._id,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+                outcome: 'failure',
                 details: {
-                    reason:      'Account locked',
+                    reason: 'Account locked',
                     lockedUntil: profile.accountLockedUntil,
                 },
             });
 
             return res.status(423).json({
-                error:       'Account is temporarily locked',
-                code:        'ACCOUNT_LOCKED',
+                error: 'Account is temporarily locked',
+                code: 'ACCOUNT_LOCKED',
                 lockedUntil: profile.accountLockedUntil,
             });
         }
@@ -105,7 +132,7 @@ const authenticate = async (req, res, next) => {
         if (profile.role !== 'super_admin' && !profile.emailVerified) {
             return res.status(403).json({
                 error: 'Email verification required',
-                code:  'EMAIL_NOT_VERIFIED',
+                code: 'EMAIL_NOT_VERIFIED',
             });
         }
 
@@ -113,19 +140,19 @@ const authenticate = async (req, res, next) => {
             await profile.resetFailedLogin();
         }
 
-        req.user    = user;     // Supabase user object
+        req.user = user;     // Supabase user object
         req.profile = profile;  // MongoDB profile with role and org
 
         await AuditLog.createLog({
-            supabaseUid:  user.id,
-            action:       'login',
+            supabaseUid: user.id,
+            action: 'login',
             resourceType: 'profile',
-            resourceId:   profile._id,
-            ipAddress:    req.ip,
-            userAgent:    req.headers['user-agent'],
-            outcome:      'success',
+            resourceId: profile._id,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            outcome: 'success',
             details: {
-                role:           profile.role,
+                role: profile.role,
                 organizationId: profile.organizationId?._id,
             },
         });
@@ -135,21 +162,21 @@ const authenticate = async (req, res, next) => {
         console.error('Authentication error:', err);
 
         await AuditLog.createLog({
-            supabaseUid:  'anonymous',
-            action:       'login_failed',
+            supabaseUid: 'anonymous',
+            action: 'login_failed',
             resourceType: 'system',
-            ipAddress:    req.ip,
-            userAgent:    req.headers['user-agent'],
-            outcome:      'failure',
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            outcome: 'failure',
             details: {
                 reason: 'System error during authentication',
-                error:  err.message,
+                error: err.message,
             },
         });
 
         return res.status(500).json({
             error: 'Authentication error',
-            code:  'AUTH_SYSTEM_ERROR',
+            code: 'AUTH_SYSTEM_ERROR',
         });
     }
 };
@@ -170,7 +197,7 @@ const optionalAuthenticate = async (req, res, next) => {
 
         let profile = await Profile.findOne({
             supabaseUid: user.id,
-            isActive:    true,
+            isActive: true,
         }).populate('organizationId', 'name city'); // ← fixed: was 'name type'
 
         // Auto-heal Supabase UID mismatch if user was recreated in Supabase but their MongoDB profile remains
@@ -187,9 +214,32 @@ const optionalAuthenticate = async (req, res, next) => {
             }
         }
 
+        // ── Patient fallback ──────────────────────────
+        if (!profile) {
+            let patient = await Patient.findOne({
+                supabase_uid: user.id,
+                is_active: true,
+            });
+            if (!patient && user.email) {
+                const emailPatient = await Patient.findOne({
+                    email: user.email.toLowerCase().trim(),
+                    is_active: true,
+                });
+                if (emailPatient) {
+                    emailPatient.supabase_uid = user.id;
+                    await emailPatient.save();
+                    patient = emailPatient;
+                    console.log(`[Optional Auth] Auto-healed supabase_uid for patient: ${patient.email}`);
+                }
+            }
+            if (patient) {
+                profile = patient;
+            }
+        }
+
         if (profile && !profile.isLocked &&
             (profile.role === 'super_admin' || profile.emailVerified)) {
-            req.user    = user;
+            req.user = user;
             req.profile = profile;
         }
 
@@ -211,10 +261,10 @@ const requireRole = (...allowedRoles) => {
         }
         if (!allowedRoles.includes(req.profile.role)) {
             return res.status(403).json({
-                error:    'Insufficient role permissions',
-                code:     'INSUFFICIENT_ROLE',
+                error: 'Insufficient role permissions',
+                code: 'INSUFFICIENT_ROLE',
                 required: allowedRoles,
-                current:  req.profile.role,
+                current: req.profile.role,
             });
         }
         next();
@@ -237,7 +287,7 @@ const requireOrganization = (organizationId) => {
             !req.profile.organizationId.equals(organizationId)) {
             return res.status(403).json({
                 error: 'Access denied to this organization',
-                code:  'ORGANIZATION_ACCESS_DENIED',
+                code: 'ORGANIZATION_ACCESS_DENIED',
             });
         }
         next();
@@ -260,7 +310,7 @@ const requireOwnership = (resourceIdParam = 'id') => {
         if (resourceId !== req.profile._id.toString()) {
             return res.status(403).json({
                 error: 'Access denied — can only access own resources',
-                code:  'OWNERSHIP_REQUIRED',
+                code: 'OWNERSHIP_REQUIRED',
             });
         }
         next();

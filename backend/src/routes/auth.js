@@ -17,10 +17,10 @@ const router = express.Router();
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateTempPassword() {
-    const upper  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const digits = '0123456789';
     let pwd = '';
-    for (let i = 0; i < 4; i++) pwd += upper[Math.floor(Math.random()  * upper.length)];
+    for (let i = 0; i < 4; i++) pwd += upper[Math.floor(Math.random() * upper.length)];
     for (let i = 0; i < 4; i++) pwd += digits[Math.floor(Math.random() * digits.length)];
     return pwd.split('').sort(() => Math.random() - 0.5).join('');
 }
@@ -35,18 +35,18 @@ function validatePasswordComplexity(password) {
 }
 
 const ROLE_LABELS = {
-    super_admin:  'Super Admin',
-    org_admin:    'Org Admin',
+    super_admin: 'Super Admin',
+    org_admin: 'Org Admin',
     care_manager: 'Care Manager',
-    caller:       'Caller',
-    patient:      'Patient',
+    caller: 'Caller',
+    patient: 'Patient',
 };
 
 // Who can create whom
 // patient self-registers via /register — not via create-user
 const CREATION_HIERARCHY = {
-    super_admin:  ['org_admin', 'care_manager', 'caller'],
-    org_admin:    ['care_manager', 'caller'],
+    super_admin: ['org_admin', 'care_manager', 'caller'],
+    org_admin: ['care_manager', 'caller'],
     care_manager: ['caller'],
 };
 
@@ -77,11 +77,11 @@ router.post('/register', async (req, res) => {
         }
 
         // Check for existing account BEFORE hitting Supabase — gives a clear error
-        const existingProfile = await Profile.findOne({ email: email.toLowerCase().trim(), isActive: true });
-        if (existingProfile) {
+        const existingPatient = await Patient.findOne({ email: email.toLowerCase().trim(), is_active: true });
+        if (existingPatient) {
             return res.status(400).json({
                 error: `An account with the email "${email}" already exists. Please log in instead.`,
-                code:  'EMAIL_ALREADY_EXISTS',
+                code: 'EMAIL_ALREADY_EXISTS',
             });
         }
 
@@ -126,7 +126,7 @@ router.post('/register', async (req, res) => {
             });
 
             if (authError) {
-                await logEvent('anonymous', 'registration_failed', 'profile', null, req, {
+                await logEvent('anonymous', 'registration_failed', 'patient', null, req, {
                     email, reason: authError.message,
                 });
                 return res.status(400).json({
@@ -134,33 +134,22 @@ router.post('/register', async (req, res) => {
                     details: authError.message,
                 });
             }
-            finalUid       = authData.user.id;
+            finalUid = authData.user.id;
             authDataPayload = authData.user;
         }
 
-        // Create Profile (staff identity record)
-        // §5 FIX: Wrap MongoDB creation in try-catch — on failure, delete the Supabase user
-        let profile, patient;
+        // Create Patient document only — no Profile for patients
+        let patient;
         try {
-            profile = new Profile({
-                supabaseUid:   finalUid,
-                email,
-                fullName,
-                role:          'patient',
-                organizationId: targetOrgId,
-                phone:          phone || null,
-                emailVerified:  true,
-            });
-            await profile.save();
-
-            // Create Patient (medical/care record) — city may be null if not provided
             patient = new Patient({
-                supabase_uid:    finalUid,
-                profile_id:      profile._id,
+                supabase_uid: finalUid,
                 email,
-                name:            fullName,
-                city:            city || null,
+                name: fullName,
+                city: city || null,
                 organization_id: targetOrgId,
+                phone: phone || null,
+                role: 'patient',
+                emailVerified: true,
             });
             await patient.save();
         } catch (mongoError) {
@@ -172,10 +161,6 @@ router.post('/register', async (req, res) => {
                     console.error('Failed to cleanup Supabase user after MongoDB error:', cleanupError.message);
                 }
             }
-            // Also cleanup partial MongoDB docs
-            if (profile?._id) {
-                try { await Profile.findByIdAndDelete(profile._id); } catch { }
-            }
             throw mongoError;
         }
 
@@ -185,7 +170,7 @@ router.post('/register', async (req, res) => {
             $inc: { 'counts.patients': 1 },
         });
 
-        await logEvent(finalUid, 'profile_created', 'profile', profile._id, req, {
+        await logEvent(finalUid, 'patient_created', 'patient', patient._id, req, {
             email, role: 'patient', organizationId: targetOrgId,
         });
 
@@ -197,18 +182,18 @@ router.post('/register', async (req, res) => {
             message: 'Registration successful',
             user: userResponse,
             profile: {
-                id:             profile._id,
-                email:          profile.email,
-                fullName:       profile.fullName,
-                role:           profile.role,
-                organizationId: profile.organizationId,
-                isActive:       profile.isActive,
+                id: patient._id,
+                email: patient.email,
+                fullName: patient.name,
+                role: patient.role,
+                organizationId: patient.organization_id,
+                isActive: patient.is_active,
             },
         });
 
     } catch (error) {
         console.error('Registration error:', error);
-        await logEvent('anonymous', 'registration_failed', 'profile', null, req, {
+        await logEvent('anonymous', 'registration_failed', 'patient', null, req, {
             error: error.message,
         });
 
@@ -239,31 +224,49 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ error: 'Please select a role' });
         }
 
-        // Check profile exists in MongoDB with correct role
-        const profile = await Profile.findOne({
-            email: email.toLowerCase().trim(),
-            role,
-            isActive: true,
-        }).populate('organizationId', 'name city');
+        let account = null;
+        let isPatient = role === 'patient';
 
-        if (!profile) {
-            const existingProfile = await Profile.findOne({
+        if (isPatient) {
+            // Patient login — query patients collection
+            account = await Patient.findOne({
                 email: email.toLowerCase().trim(),
-                isActive: true,
+                is_active: true,
             });
 
-            if (existingProfile) {
+            if (!account) {
                 return res.status(403).json({
-                    error: `No account found for role "${ROLE_LABELS[role] || role}". Please select the correct role.`,
-                    code: 'ROLE_MISMATCH',
-                    hint: 'Please select the role that was assigned to your account.',
+                    error: 'No account found with this email. Please sign up first.',
+                    code: 'PROFILE_NOT_FOUND',
                 });
             }
+        } else {
+            // Staff login — query profiles collection
+            account = await Profile.findOne({
+                email: email.toLowerCase().trim(),
+                role,
+                isActive: true,
+            }).populate('organizationId', 'name city');
 
-            return res.status(403).json({
-                error: 'No account found with this email. Please contact your administrator.',
-                code: 'PROFILE_NOT_FOUND',
-            });
+            if (!account) {
+                const existingProfile = await Profile.findOne({
+                    email: email.toLowerCase().trim(),
+                    isActive: true,
+                });
+
+                if (existingProfile) {
+                    return res.status(403).json({
+                        error: `No account found for role "${ROLE_LABELS[role] || role}". Please select the correct role.`,
+                        code: 'ROLE_MISMATCH',
+                        hint: 'Please select the role that was assigned to your account.',
+                    });
+                }
+
+                return res.status(403).json({
+                    error: 'No account found with this email. Please contact your administrator.',
+                    code: 'PROFILE_NOT_FOUND',
+                });
+            }
         }
 
         // Authenticate with Supabase
@@ -276,56 +279,57 @@ router.post('/login', async (req, res) => {
                 `Failed login attempt for ${email}: ${authError.message}`, req);
             return res.status(401).json({
                 error: 'Invalid credentials. Please check your password.',
-                code:  'INVALID_CREDENTIALS',
+                code: 'INVALID_CREDENTIALS',
             });
         }
 
-        if (profile.isLocked) {
+        if (account.isLocked) {
             await logSecurityEvent(authData.user.id, 'login_failed', 'high', 'Account is locked', req);
             return res.status(423).json({
-                error:       'Account is temporarily locked',
-                code:        'ACCOUNT_LOCKED',
-                lockedUntil: profile.accountLockedUntil,
+                error: 'Account is temporarily locked',
+                code: 'ACCOUNT_LOCKED',
+                lockedUntil: account.accountLockedUntil,
             });
         }
 
-        if (profile.failedLoginAttempts > 0) {
-            await profile.resetFailedLogin();
+        if (account.failedLoginAttempts > 0) {
+            await account.resetFailedLogin();
         }
 
-        await logEvent(authData.user.id, 'login', 'profile', profile._id, req, {
-            role: profile.role,
-            organizationId: profile.organizationId?._id,
+        const accountId = account._id;
+        const accountUidField = isPatient ? account.supabase_uid : account.supabaseUid;
+        await logEvent(authData.user.id, 'login', isPatient ? 'patient' : 'profile', accountId, req, {
+            role: isPatient ? 'patient' : account.role,
+            organizationId: isPatient ? account.organization_id : account.organizationId?._id,
         });
 
-        // Fetch subscription status for patients
+        // Build response
         let subscriptionStatus = null;
-        if (profile.role === 'patient') {
-            const patient = await Patient.findOne({ supabase_uid: authData.user.id });
-            subscriptionStatus = patient?.subscription?.status || 'pending_payment';
+        if (isPatient) {
+            subscriptionStatus = account.subscription?.status || 'pending_payment';
         }
 
         res.json({
             message: 'Login successful',
             session: {
-                access_token:  authData.session.access_token,
+                access_token: authData.session.access_token,
                 refresh_token: authData.session.refresh_token,
-                expires_in:    authData.session.expires_in,
+                expires_in: authData.session.expires_in,
                 user: {
-                    id:             authData.user.id,
-                    email:          authData.user.email,
+                    id: authData.user.id,
+                    email: authData.user.email,
                     email_verified: authData.user.email_confirmed_at !== null,
                 },
             },
             profile: {
-                id:                  profile._id,
-                email:               profile.email,
-                fullName:            profile.fullName,
-                role:                profile.role,
-                organizationId:      profile.organizationId,
-                isActive:            profile.isActive,
-                emailVerified:       profile.emailVerified,
-                mustChangePassword:  profile.mustChangePassword || false,
+                id: accountId,
+                email: isPatient ? account.email : account.email,
+                fullName: isPatient ? account.name : account.fullName,
+                role: isPatient ? 'patient' : account.role,
+                organizationId: isPatient ? account.organization_id : account.organizationId,
+                isActive: isPatient ? account.is_active : account.isActive,
+                emailVerified: account.emailVerified,
+                mustChangePassword: account.mustChangePassword || false,
                 subscription_status: subscriptionStatus,
             },
         });
@@ -367,36 +371,46 @@ router.post('/refresh', async (req, res) => {
         if (authError) {
             return res.status(401).json({
                 error: 'Invalid or expired refresh token',
-                code:  'INVALID_REFRESH_TOKEN',
+                code: 'INVALID_REFRESH_TOKEN',
             });
         }
 
-        const profile = await Profile.findOne({
+        // Try Profile first, then Patient
+        let profile = await Profile.findOne({
             supabaseUid: authData.user.id,
             isActive: true,
         }).populate('organizationId', 'name city');
 
+        let isPatient = false;
+        if (!profile) {
+            profile = await Patient.findOne({
+                supabase_uid: authData.user.id,
+                is_active: true,
+            });
+            isPatient = !!profile;
+        }
+
         if (!profile) {
             return res.status(403).json({
                 error: 'Profile not found or account deactivated',
-                code:  'PROFILE_NOT_FOUND',
+                code: 'PROFILE_NOT_FOUND',
             });
         }
 
         res.json({
             message: 'Token refreshed successfully',
             session: {
-                access_token:  authData.session.access_token,
+                access_token: authData.session.access_token,
                 refresh_token: authData.session.refresh_token,
-                expires_in:    authData.session.expires_in,
+                expires_in: authData.session.expires_in,
             },
             profile: {
-                id:             profile._id,
-                email:          profile.email,
-                fullName:       profile.fullName,
-                role:           profile.role,
-                organizationId: profile.organizationId,
-                isActive:       profile.isActive,
+                id: profile._id,
+                email: profile.email,
+                fullName: isPatient ? profile.name : profile.fullName,
+                role: isPatient ? 'patient' : profile.role,
+                organizationId: isPatient ? profile.organization_id : profile.organizationId,
+                isActive: isPatient ? profile.is_active : profile.isActive,
             },
         });
 
@@ -447,69 +461,77 @@ router.post('/reset-password', async (req, res) => {
  */
 router.get('/me', authenticate, async (req, res) => {
     try {
-        const profile = await Profile.findById(req.profile._id)
-            .populate('organizationId', 'name city subscriptionPlan');
+        const isPatient = req.profile.role === 'patient';
 
-        let subscriptionStatus = null;
-        if (profile.role === 'patient') {
-            let patient = await Patient.findOne({ profile_id: req.profile._id });
-            
-            // Fallback for older patients that might not have a profile_id
-            if (!patient) {
-                patient = await Patient.findOne({ supabase_uid: req.user.id });
-            }
-            
-            // Auto-heal Patient supabase_uid AND profile_id if they don't match
-            if (!patient && req.user.email) {
-                patient = await Patient.findOne({ email: req.user.email.toLowerCase().trim() });
-            }
-            
-            if (patient && (patient.supabase_uid !== req.user.id || !patient.profile_id || patient.profile_id.toString() !== req.profile._id.toString())) {
-                patient.supabase_uid = req.user.id;
-                patient.profile_id = req.profile._id;
-                await patient.save();
-                console.log(`[Auto-Heal] Synced Patient supabase_uid/profile_id for: ${patient.email}`);
+        if (isPatient) {
+            // Patient is already attached by middleware — return it directly
+            const patient = req.profile;
+            res.json({
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    email_verified: req.user.email_confirmed_at !== null,
+                    created_at: req.user.created_at,
+                },
+                profile: {
+                    id: patient._id,
+                    email: patient.email,
+                    fullName: patient.name,
+                    role: 'patient',
+                    organizationId: patient.organization_id,
+                    phone: patient.phone,
+                    avatarUrl: patient.avatar_url,
+                    isActive: patient.is_active,
+                    emailVerified: patient.emailVerified,
+                    lastLoginAt: patient.lastLoginAt,
+                    subscription_status: patient.subscription?.status || 'pending_payment',
+                },
+            });
+        } else {
+            // Staff path — unchanged
+            const profile = await Profile.findById(req.profile._id)
+                .populate('organizationId', 'name city subscriptionPlan');
+
+            let subscriptionStatus = null;
+            if (profile.role === 'caller') {
+                let caller = await Caller.findOne({ supabase_uid: req.user.id });
+
+                if (!caller && req.user.email) {
+                    caller = await Caller.findOne({ email: req.user.email.toLowerCase().trim() });
+                }
+
+                if (caller && caller.supabase_uid !== req.user.id) {
+                    caller.supabase_uid = req.user.id;
+                    await caller.save();
+                    console.log(`[Auto-Heal] Synced Caller supabase_uid for: ${caller.email}`);
+                }
             }
 
-            subscriptionStatus = patient?.subscription?.status || 'pending_payment';
-        } else if (profile.role === 'caller') {
-            let caller = await Caller.findOne({ supabase_uid: req.user.id });
-            
-            if (!caller && req.user.email) {
-                caller = await Caller.findOne({ email: req.user.email.toLowerCase().trim() });
-            }
-            
-            if (caller && caller.supabase_uid !== req.user.id) {
-                caller.supabase_uid = req.user.id;
-                await caller.save();
-                console.log(`[Auto-Heal] Synced Caller supabase_uid for: ${caller.email}`);
-            }
+            res.json({
+                user: {
+                    id: req.user.id,
+                    email: req.user.email,
+                    email_verified: req.user.email_confirmed_at !== null,
+                    created_at: req.user.created_at,
+                },
+                profile: {
+                    id: profile._id,
+                    email: profile.email,
+                    fullName: profile.fullName,
+                    role: profile.role,
+                    organizationId: profile.organizationId,
+                    phone: profile.phone,
+                    avatarUrl: profile.avatarUrl,
+                    isActive: profile.isActive,
+                    emailVerified: profile.emailVerified,
+                    lastLoginAt: profile.lastLoginAt,
+                    twoFactorEnabled: profile.twoFactorEnabled,
+                    metadata: profile.metadata,
+                    mustChangePassword: profile.mustChangePassword || false,
+                    subscription_status: subscriptionStatus,
+                },
+            });
         }
-
-        res.json({
-            user: {
-                id:             req.user.id,
-                email:          req.user.email,
-                email_verified: req.user.email_confirmed_at !== null,
-                created_at:     req.user.created_at,
-            },
-            profile: {
-                id:                  profile._id,
-                email:               profile.email,
-                fullName:            profile.fullName,
-                role:                profile.role,
-                organizationId:      profile.organizationId,
-                phone:               profile.phone,
-                avatarUrl:           profile.avatarUrl,
-                isActive:            profile.isActive,
-                emailVerified:       profile.emailVerified,
-                lastLoginAt:         profile.lastLoginAt,
-                twoFactorEnabled:    profile.twoFactorEnabled,
-                metadata:            profile.metadata,
-                mustChangePassword:  profile.mustChangePassword || false,
-                subscription_status: subscriptionStatus,
-            },
-        });
     } catch (error) {
         console.error('Get profile error:', error);
         res.status(500).json({ error: 'Failed to get profile', details: error.message });
@@ -535,7 +557,7 @@ router.post('/create-user', authenticate, checkPasswordChange, async (req, res) 
         if (!allowedTargetRoles || !allowedTargetRoles.includes(role)) {
             return res.status(403).json({
                 error: `Role '${callerRole}' cannot create role '${role}'`,
-                code:  'ROLE_HIERARCHY_VIOLATION',
+                code: 'ROLE_HIERARCHY_VIOLATION',
             });
         }
 
@@ -555,7 +577,7 @@ router.post('/create-user', authenticate, checkPasswordChange, async (req, res) 
             if (!org.canAdd(role)) {
                 return res.status(400).json({
                     error: `Organisation has reached its ${role} capacity`,
-                    code:  'CAPACITY_LIMIT_REACHED',
+                    code: 'CAPACITY_LIMIT_REACHED',
                 });
             }
         }
@@ -595,23 +617,23 @@ router.post('/create-user', authenticate, checkPasswordChange, async (req, res) 
         const hashedTemp = await bcrypt.hash(tempPassword, 12);
 
         const profile = new Profile({
-            supabaseUid:       authData.user.id,
+            supabaseUid: authData.user.id,
             email,
             fullName,
             role,
-            organizationId:    targetOrgId || null,
+            organizationId: targetOrgId || null,
             mustChangePassword: true,
-            passwordHistory:   [hashedTemp],
-            createdBy:         req.profile._id,
-            emailVerified:     true,
+            passwordHistory: [hashedTemp],
+            createdBy: req.profile._id,
+            emailVerified: true,
         });
         await profile.save();
 
         // Increment org counters for staff roles
         if (targetOrgId) {
             const incField =
-                role === 'caller'       ? 'counts.callers'  :
-                role === 'care_manager' ? 'counts.managers' : null;
+                role === 'caller' ? 'counts.callers' :
+                    role === 'care_manager' ? 'counts.managers' : null;
 
             if (incField) {
                 await Organization.findByIdAndUpdate(targetOrgId, {
@@ -630,10 +652,10 @@ router.post('/create-user', authenticate, checkPasswordChange, async (req, res) 
         res.status(201).json({
             message: `${ROLE_LABELS[role] || role} account created successfully. Temporary password sent to ${email}.`,
             profile: {
-                id:             profile._id,
-                email:          profile.email,
-                fullName:       profile.fullName,
-                role:           profile.role,
+                id: profile._id,
+                email: profile.email,
+                fullName: profile.fullName,
+                role: profile.role,
                 organizationId: profile.organizationId,
             },
         });
@@ -665,12 +687,14 @@ router.post('/change-password', authenticate, async (req, res) => {
         }
 
         // Verify current password via Supabase sign-in
+        const profileEmail = req.profile.role === 'patient' ? req.profile.email : req.profile.email;
         const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: req.profile.email,
+            email: profileEmail,
             password: currentPassword,
         });
         if (signInError) {
-            await logSecurityEvent(req.profile.supabaseUid, 'password_change_failed', 'medium',
+            const uid = req.profile.role === 'patient' ? req.profile.supabase_uid : req.profile.supabaseUid;
+            await logSecurityEvent(uid, 'password_change_failed', 'medium',
                 'Incorrect current password during password change', req);
             return res.status(401).json({ error: 'Current password is incorrect', code: 'INVALID_CURRENT_PASSWORD' });
         }
@@ -679,16 +703,18 @@ router.post('/change-password', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'New password must be different from current password' });
         }
 
-        // Check password history
-        const profile = await Profile.findById(req.profile._id).select('+passwordHistory');
-        if (profile.passwordHistory?.length > 0) {
-            for (const oldHash of profile.passwordHistory) {
-                const matches = await bcrypt.compare(newPassword, oldHash);
-                if (matches) {
-                    return res.status(400).json({
-                        error: 'Cannot reuse any of your last 3 passwords',
-                        code:  'PASSWORD_REUSE',
-                    });
+        // Check password history (staff only — patients don't store password history)
+        if (req.profile.role !== 'patient') {
+            const profile = await Profile.findById(req.profile._id).select('+passwordHistory');
+            if (profile.passwordHistory?.length > 0) {
+                for (const oldHash of profile.passwordHistory) {
+                    const matches = await bcrypt.compare(newPassword, oldHash);
+                    if (matches) {
+                        return res.status(400).json({
+                            error: 'Cannot reuse any of your last 3 passwords',
+                            code: 'PASSWORD_REUSE',
+                        });
+                    }
                 }
             }
         }
@@ -701,23 +727,28 @@ router.post('/change-password', authenticate, async (req, res) => {
             return res.status(500).json({ error: 'Failed to update password', details: updateError.message });
         }
 
-        // Update MongoDB password history
-        const newHash = await bcrypt.hash(newPassword, 12);
-        const history = [...(profile.passwordHistory || []), newHash].slice(-3);
+        // Update MongoDB password history (staff only)
+        if (req.profile.role !== 'patient') {
+            const newHash = await bcrypt.hash(newPassword, 12);
+            const profile = await Profile.findById(req.profile._id).select('+passwordHistory');
+            const history = [...(profile.passwordHistory || []), newHash].slice(-3);
 
-        await Profile.findByIdAndUpdate(req.profile._id, {
-            passwordHistory:   history,
-            mustChangePassword: false,
-            passwordChangedAt:  new Date(),
-        });
+            await Profile.findByIdAndUpdate(req.profile._id, {
+                passwordHistory: history,
+                mustChangePassword: false,
+                passwordChangedAt: new Date(),
+            });
+        }
 
         // Invalidate all Supabase sessions
         await supabase.auth.admin.signOut(req.user.id, 'global');
 
         // Send confirmation email (non-blocking)
-        sendPasswordChangedEmail(req.profile.email, req.profile.fullName);
+        const fullName = req.profile.role === 'patient' ? req.profile.name : req.profile.fullName;
+        sendPasswordChangedEmail(req.profile.email, fullName);
 
-        await logEvent(req.profile.supabaseUid, 'password_changed', 'profile', req.profile._id, req, {
+        const uid = req.profile.role === 'patient' ? req.profile.supabase_uid : req.profile.supabaseUid;
+        await logEvent(uid, 'password_changed', req.profile.role === 'patient' ? 'patient' : 'profile', req.profile._id, req, {
             forced: req.profile.mustChangePassword,
         });
 
@@ -751,17 +782,11 @@ router.put('/patient-city', authenticate, async (req, res) => {
             return res.status(404).json({ error: 'Patient record not found' });
         }
 
-        // Also update organization if city changed
+        // Update organization if city changed
         const org = await Organization.findOne({ city, isActive: true });
         if (org && org._id.toString() !== patient.organization_id?.toString()) {
             patient.organization_id = org._id;
             await patient.save();
-            
-            // Update profile organization too
-            await Profile.findOneAndUpdate(
-                { supabaseUid: req.user.id },
-                { organizationId: org._id }
-            );
         }
 
         await logEvent(req.user.id, 'patient_city_updated', 'patient', patient._id, req, { city });
@@ -787,8 +812,8 @@ router.put('/me', authenticate, checkPasswordChange, authorize('profile', 'updat
         const { fullName, phone, avatarUrl } = req.body;
         const updateData = {};
 
-        if (fullName  !== undefined) updateData.fullName  = fullName;
-        if (phone     !== undefined) updateData.phone     = phone;
+        if (fullName !== undefined) updateData.fullName = fullName;
+        if (phone !== undefined) updateData.phone = phone;
         if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
 
         const profile = await Profile.findByIdAndUpdate(
@@ -804,15 +829,15 @@ router.put('/me', authenticate, checkPasswordChange, authorize('profile', 'updat
         res.json({
             message: 'Profile updated successfully',
             profile: {
-                id:             profile._id,
-                email:          profile.email,
-                fullName:       profile.fullName,
-                role:           profile.role,
+                id: profile._id,
+                email: profile.email,
+                fullName: profile.fullName,
+                role: profile.role,
                 organizationId: profile.organizationId,
-                phone:          profile.phone,
-                avatarUrl:      profile.avatarUrl,
-                isActive:       profile.isActive,
-                emailVerified:  profile.emailVerified,
+                phone: profile.phone,
+                avatarUrl: profile.avatarUrl,
+                isActive: profile.isActive,
+                emailVerified: profile.emailVerified,
             },
         });
 

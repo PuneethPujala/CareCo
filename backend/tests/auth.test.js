@@ -143,8 +143,8 @@ describe('Auth Routes', () => {
 
 
         it('returns 400 when email already exists', async () => {
-            // Early check: Profile.findOne returns an existing profile → 400 before Supabase
-            Profile.findOne = jest.fn().mockResolvedValueOnce({ _id: 'existing', email: 'dupe@careco.in' });
+            // Early check: Patient.findOne returns an existing patient → 400 before Supabase
+            Patient.findOne = jest.fn().mockResolvedValueOnce({ _id: 'existing', email: 'dupe@careco.in' });
 
             const res = await request(app)
                 .post('/api/auth/register')
@@ -157,6 +157,7 @@ describe('Auth Routes', () => {
         });
 
         it('returns 400 when no active org is found for city', async () => {
+            Patient.findOne      = jest.fn().mockResolvedValue(null);
             Organization.findOne = jest.fn().mockResolvedValue(null);
 
             const res = await request(app)
@@ -173,6 +174,7 @@ describe('Auth Routes', () => {
                 counts: { patients: 500, callers: 0, managers: 0 },
                 limits: { max_patients: 500, max_callers: 50, max_managers: 10 },
             });
+            Patient.findOne       = jest.fn().mockResolvedValue(null);
             Organization.findOne  = jest.fn().mockResolvedValue(org);
             Organization.findById = jest.fn().mockResolvedValue(org);
 
@@ -186,9 +188,9 @@ describe('Auth Routes', () => {
 
         it('returns 400 for duplicate email (MongoDB 11000 fallback for race conditions)', async () => {
             const org = mockOrganization({ _id: 'org123' });
-            // Profile.findOne must return null to pass the early duplicate check
+            // Patient.findOne must return null to pass the early duplicate check
             // (simulating a race condition where the email slips through to the DB level)
-            Profile.findOne       = jest.fn().mockResolvedValue(null);
+            Patient.findOne       = jest.fn().mockResolvedValue(null);
             Organization.findOne  = jest.fn().mockResolvedValue(org);
             Organization.findById = jest.fn().mockResolvedValue(org);
 
@@ -198,7 +200,7 @@ describe('Auth Routes', () => {
             });
 
             const dupeError = Object.assign(new Error('Duplicate'), { code: 11000, keyValue: { email: 1 } });
-            Profile.prototype.save = jest.fn().mockRejectedValue(dupeError);
+            Patient.prototype.save = jest.fn().mockRejectedValue(dupeError);
 
             const res = await request(app)
                 .post('/api/auth/register')
@@ -208,8 +210,9 @@ describe('Auth Routes', () => {
             expect(res.body.error).toMatch(/already exists/i);
         });
 
-        it('registers successfully and creates both Profile and Patient', async () => {
+        it('registers successfully and creates Patient only (no Profile)', async () => {
             const org = mockOrganization({ _id: 'org123' });
+            Patient.findOne                = jest.fn().mockResolvedValue(null);
             Organization.findOne          = jest.fn().mockResolvedValue(org);
             Organization.findById         = jest.fn().mockResolvedValue(org);
             Organization.findByIdAndUpdate = jest.fn().mockResolvedValue({});
@@ -219,10 +222,7 @@ describe('Auth Routes', () => {
                 error: null,
             });
 
-            // Jest auto-mock doesn't run the real constructor so _id is undefined by default.
-            // Set it on the prototype before the request so logEvent receives a truthy value.
-            Profile.prototype._id  = 'profile-auto-id';
-            Profile.prototype.save = jest.fn().mockResolvedValue({});
+            Patient.prototype._id  = 'patient-auto-id';
             Patient.prototype.save = jest.fn().mockResolvedValue({});
 
             const res = await request(app)
@@ -231,17 +231,18 @@ describe('Auth Routes', () => {
 
             expect(res.status).toBe(201);
             expect(res.body.message).toBe('Registration successful');
-            expect(Profile.prototype.save).toHaveBeenCalled();
             expect(Patient.prototype.save).toHaveBeenCalled();
+            // Profile should NOT be created
+            expect(Profile.prototype.save).not.toHaveBeenCalled();
             expect(Organization.findByIdAndUpdate).toHaveBeenCalledWith(
                 expect.anything(),
                 { $inc: { 'counts.patients': 1 } }
             );
             expect(logEvent).toHaveBeenCalledWith(
                 'sup-uid-123',
-                'profile_created',
-                'profile',
-                expect.anything(),   // profile._id from auto-mocked instance
+                'patient_created',
+                'patient',
+                expect.anything(),
                 expect.any(Object),
                 expect.any(Object)
             );
@@ -271,8 +272,8 @@ describe('Auth Routes', () => {
         });
 
         it('returns 403 with ROLE_MISMATCH when email exists under a different role', async () => {
-            // Call 1: Profile.findOne({email, role, isActive}).populate() → null (chain)
-            // Call 2: Profile.findOne({email, isActive})                  → profile (plain await)
+            // Staff login: Call 1: Profile.findOne({email, role:'caller', isActive}).populate() → null
+            // Call 2: Profile.findOne({email, isActive}) → profile with role 'care_manager'
             const existingProfile = mockProfile({ role: 'care_manager' });
             Profile.findOne = jest.fn()
                 .mockReturnValueOnce(findOnePopulateChain(null))
@@ -280,16 +281,14 @@ describe('Auth Routes', () => {
 
             const res = await request(app)
                 .post('/api/auth/login')
-                .send({ email: 'test@example.com', password: 'Pass123', role: 'patient' });
+                .send({ email: 'test@example.com', password: 'Pass123', role: 'caller' });
 
             expect(res.status).toBe(403);
             expect(res.body.code).toBe('ROLE_MISMATCH');
         });
 
-        it('returns 403 with PROFILE_NOT_FOUND when email does not exist', async () => {
-            Profile.findOne = jest.fn()
-                .mockReturnValueOnce(findOnePopulateChain(null))
-                .mockResolvedValueOnce(null);
+        it('returns 403 with PROFILE_NOT_FOUND when patient email does not exist', async () => {
+            Patient.findOne = jest.fn().mockResolvedValueOnce(null);
 
             const res = await request(app)
                 .post('/api/auth/login')
@@ -338,7 +337,38 @@ describe('Auth Routes', () => {
             expect(res.body.code).toBe('ACCOUNT_LOCKED');
         });
 
-        it('logs in successfully and returns session + profile', async () => {
+        it('logs in patient successfully and returns session + profile', async () => {
+            const patient = mockPatient({ _id: 'patient123', email: 'patient@careco.in', failedLoginAttempts: 0 });
+            Object.defineProperty(patient, 'isLocked', { get: () => false });
+            Patient.findOne = jest.fn().mockResolvedValue(patient);
+
+            mockSupabase.auth.signInWithPassword.mockResolvedValue({
+                data: {
+                    user:    { id: 'sup-uid-123', email: 'patient@careco.in', email_confirmed_at: new Date().toISOString() },
+                    session: { access_token: 'acc-tok', refresh_token: 'ref-tok', expires_in: 3600 },
+                },
+                error: null,
+            });
+
+            const res = await request(app)
+                .post('/api/auth/login')
+                .send({ email: 'patient@careco.in', password: 'Pass123', role: 'patient' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.session.access_token).toBe('acc-tok');
+            expect(res.body.profile.role).toBe('patient');
+            expect(res.body.profile.subscription_status).toBe('active');
+            expect(logEvent).toHaveBeenCalledWith(
+                'sup-uid-123',
+                'login',
+                'patient',
+                patient._id,
+                expect.any(Object),
+                expect.any(Object)
+            );
+        });
+
+        it('logs in staff successfully and returns session + profile', async () => {
             const profile = mockProfile({ role: 'caller', failedLoginAttempts: 0 });
             Object.defineProperty(profile, 'isLocked', { get: () => false });
             Profile.findOne = jest.fn().mockReturnValue(findOnePopulateChain(profile));
@@ -450,7 +480,7 @@ describe('Auth Routes', () => {
             expect(res.body.profile.role).toBe(profile.role);
         });
 
-        it('returns 403 when refreshed user has no profile', async () => {
+        it('returns 403 when refreshed user has no profile or patient', async () => {
             mockSupabase.auth.refreshSession.mockResolvedValue({
                 data: {
                     user:    { id: 'sup-uid-orphan' },
@@ -460,6 +490,7 @@ describe('Auth Routes', () => {
             });
 
             Profile.findOne = jest.fn().mockReturnValue(findOnePopulateChain(null));
+            Patient.findOne = jest.fn().mockResolvedValue(null);
 
             const res = await request(app)
                 .post('/api/auth/refresh')
@@ -489,18 +520,15 @@ describe('Auth Routes', () => {
         });
 
         it('returns subscription_status for patient role', async () => {
-            const profile = mockProfile({ _id: 'profile123', role: 'patient' });
-            const patient = mockPatient({ subscription: { status: 'active', plan: 'basic' } });
-            mockAuthState.user    = { id: 'sup-uid-123', email_confirmed_at: new Date().toISOString(), created_at: new Date().toISOString() };
-            mockAuthState.profile = profile;
-
-            Profile.findById = jest.fn().mockReturnValue(findByIdPopulateChain(profile));
-            Patient.findOne  = jest.fn().mockResolvedValue(patient);
+            const patient = mockPatient({ _id: 'patient123', role: 'patient', subscription: { status: 'active', plan: 'basic' } });
+            mockAuthState.user    = { id: 'sup-uid-123', email: 'patient@careco.in', email_confirmed_at: new Date().toISOString(), created_at: new Date().toISOString() };
+            mockAuthState.profile = patient;
 
             const res = await request(app).get('/api/auth/me');
 
             expect(res.status).toBe(200);
             expect(res.body.profile.subscription_status).toBe('active');
+            expect(res.body.profile.role).toBe('patient');
         });
 
         it('returns 401 when not authenticated', async () => {

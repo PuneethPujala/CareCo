@@ -33,7 +33,8 @@ function mockPatient(overrides = {}) {
     return {
         _id:                id,
         supabase_uid:       overrides.supabase_uid       || `sup-uid-pat-${rawId}`,
-        profile_id:         overrides.profile_id         || fakeId('test-profile-id'),
+        profile_id:         overrides.profile_id         || null,
+        role:               overrides.role               || 'patient',
         name:               overrides.name               || 'Test Patient',
         email:              overrides.email              || 'patient@careco.in',
         phone:              overrides.phone              || '+919999999999',
@@ -60,10 +61,18 @@ function mockPatient(overrides = {}) {
         deactivated_at:     overrides.deactivated_at     || null,
         deactivated_reason: overrides.deactivated_reason || null,
         expireAt:           overrides.expireAt           || null,
+        // ── Auth & Security fields ────────────────────
+        emailVerified:       overrides.emailVerified       !== undefined ? overrides.emailVerified : true,
+        lastLoginAt:         overrides.lastLoginAt         || null,
+        failedLoginAttempts: overrides.failedLoginAttempts !== undefined ? overrides.failedLoginAttempts : 0,
+        accountLockedUntil:  overrides.accountLockedUntil  || null,
+        isLocked:            overrides.isLocked            !== undefined ? overrides.isLocked : false,
         // Mongoose instance methods used by routes
+        resetFailedLogin:    jest.fn().mockResolvedValue(true),
+        incrementFailedLogin: jest.fn().mockResolvedValue(true),
         save:   jest.fn().mockResolvedValue(true),
         toJSON: function () {
-            const { save, toJSON, ...rest } = this;
+            const { save, toJSON, resetFailedLogin, incrementFailedLogin, ...rest } = this;
             return rest;
         },
         // Allow spread overrides last so tests can override anything

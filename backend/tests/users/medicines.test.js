@@ -50,13 +50,17 @@ function makePatient(overrides = {}) {
 }
 
 function makeLog(overrides = {}) {
-    return {
+    const obj = {
         _id:      fakeId(overrides._id || 'log-id'),
         patient_id: fakeId(overrides.patient_id || 'patient-id'),
         date:     overrides.date || new Date(),
         medicines: overrides.medicines || [],
-        save:     jest.fn().mockResolvedValue(true),
         ...overrides,
+    };
+    return {
+        ...obj,
+        save:     jest.fn().mockResolvedValue(true),
+        toObject: () => obj,
     };
 }
 

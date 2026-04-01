@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, Dimensions, Alert } from 'react-native';
-import { Pill, Sunrise, Sun, Moon, CheckCircle2, Circle, Bell, Activity, Plus, Coffee, Utensils, BedDouble, AlertCircle, Calendar } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, Dimensions, Alert, Modal, TextInput, RefreshControl, DeviceEventEmitter } from 'react-native';
+import { Pill, Sunrise, Sun, Moon, CheckCircle2, Circle, Bell, Activity, Plus, Coffee, Utensils, BedDouble, AlertCircle, Calendar, Pencil, Clock, PillBottle, Syringe, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle as SvgCircle } from 'react-native-svg';
+import Svg, { Circle as SvgCircle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { colors } from '../../theme';
 import { apiService } from '../../lib/api';
 
 const { width } = Dimensions.get('window');
 
-const ACCENT_MAP = { morning: colors.success, afternoon: colors.warning, night: '#8B5CF6' };
+const ACCENT_MAP = { morning: '#0D9488', afternoon: '#0F766E', night: '#134E4A' };
 const TIME_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
 
 const FONT = {
@@ -19,48 +20,250 @@ const FONT = {
     heavy: { fontFamily: 'Inter_800ExtraBold' },
 };
 
-const CircularProgress = ({ progress = 0, size = 64, strokeWidth = 8, color = '#6366F1' }) => {
+const AnimatedCircle = Animated.createAnimatedComponent(SvgCircle);
+
+const CircularProgress = ({ progress = 0, size = 64, strokeWidth = 6, color = '#0D9488' }) => {
     const radius = (size - strokeWidth) / 2;
     const circumference = radius * 2 * Math.PI;
-    const strokeDashoffset = circumference - (progress / 100) * circumference;
+    const animatedProgress = useRef(new Animated.Value(0)).current;
+    const [displayProgress, setDisplayProgress] = useState(0);
+
+    useEffect(() => {
+        const listener = animatedProgress.addListener(({ value }) => {
+            setDisplayProgress(Math.round(value));
+        });
+        return () => animatedProgress.removeListener(listener);
+    }, [animatedProgress]);
+
+    useEffect(() => {
+        Animated.spring(animatedProgress, {
+            toValue: progress,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: false,
+        }).start();
+    }, [progress, animatedProgress]);
+
+    const strokeDashoffset = animatedProgress.interpolate({
+        inputRange: [0, 100],
+        outputRange: [circumference, 0],
+        extrapolate: 'clamp'
+    });
     
     return (
         <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                <SvgCircle cx={size/2} cy={size/2} r={radius} stroke="#EEF2FF" strokeWidth={strokeWidth} fill="none" />
-                <SvgCircle 
+                <Defs>
+                    <SvgLinearGradient id="circGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor="#60A5FA" />
+                        <Stop offset="100%" stopColor="#1E3A8A" />
+                    </SvgLinearGradient>
+                </Defs>
+                <SvgCircle cx={size/2} cy={size/2} r={radius} stroke="#F1F5F9" strokeWidth={strokeWidth} fill="none" />
+                <AnimatedCircle 
                     cx={size/2} cy={size/2} r={radius} 
-                    stroke={color} strokeWidth={strokeWidth} fill="none" 
+                    stroke="url(#circGrad)" strokeWidth={strokeWidth} fill="none" 
                     strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} 
                     strokeLinecap="round" transform={`rotate(-90 ${size/2} ${size/2})`} 
                 />
             </Svg>
             <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E293B' }}>{Math.round(progress)}%</Text>
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#0F172A' }}>{displayProgress}%</Text>
             </View>
         </View>
     );
 };
 
-const TimePill = ({ type, timeStr }) => {
-    let IconCmp, bg, color;
-    if (type === 'morning') { IconCmp = Sunrise; bg = '#DCFCE7'; color = colors.success; }
-    else if (type === 'afternoon') { IconCmp = Sun; bg = '#FEF3C7'; color = colors.warning; }
-    else { IconCmp = Moon; bg = '#EDE9FE'; color = '#8B5CF6'; }
+const AnimatedBar = ({ percentage }) => {
+    const animHeight = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.spring(animHeight, {
+            toValue: percentage,
+            friction: 8,
+            tension: 40,
+            useNativeDriver: false,
+        }).start();
+    }, [percentage, animHeight]);
+
+    const height = animHeight.interpolate({
+        inputRange: [0, 100],
+        outputRange: ['8%', '100%'],
+        extrapolate: 'clamp'
+    });
+
+    const backgroundColor = animHeight.interpolate({
+        inputRange: [0, 1, 100],
+        outputRange: ['#E2E8F0', '#93C5FD', '#2563EB'],
+        extrapolate: 'clamp'
+    });
 
     return (
-        <View style={styles.timeSectionHeaderWrapper}>
-            <View style={[styles.timeBadge, { backgroundColor: bg }]}>
-                <IconCmp size={14} color={color} strokeWidth={2.5} />
-                <Text style={[styles.timeBadgeTxt, { color }]}>{timeStr}</Text>
-            </View>
+        <View style={styles.chartBarBg}>
+            <Animated.View style={[styles.chartBarFill, { height, backgroundColor }]} />
         </View>
+    );
+};
+
+const ITEM_HEIGHT = 44; // Increased for better tap targets and visibility
+const VISIBLE_ITEMS = 5;
+
+const WheelColumn = ({ data, selectedValue, onValueChange, width: colWidth }) => {
+    const scrollRef = useRef(null);
+    const paddingItems = Math.floor(VISIBLE_ITEMS / 2);
+    const isProgrammaticScroll = useRef(false);
+
+    useEffect(() => {
+        const idx = data.indexOf(selectedValue);
+        if (idx >= 0 && scrollRef.current) {
+            isProgrammaticScroll.current = true;
+            setTimeout(() => {
+                try { scrollRef.current?.scrollTo({ y: idx * ITEM_HEIGHT, animated: false }); } catch(e) {}
+                setTimeout(() => { isProgrammaticScroll.current = false; }, 50);
+            }, 50);
+        }
+    }, [selectedValue, data]);
+
+    const handleScroll = useCallback((event) => {
+        if (isProgrammaticScroll.current) return;
+        const y = event.nativeEvent.contentOffset.y;
+        const index = Math.round(y / ITEM_HEIGHT);
+        if (index >= 0 && index < data.length && data[index] !== selectedValue) {
+            onValueChange(data[index]);
+        }
+    }, [data, selectedValue, onValueChange]);
+
+    const handleTap = useCallback((index) => {
+        isProgrammaticScroll.current = true;
+        onValueChange(data[index]);
+        if (scrollRef.current) {
+            try { scrollRef.current.scrollTo({ y: index * ITEM_HEIGHT, animated: true }); } catch(e) {}
+        }
+        setTimeout(() => { isProgrammaticScroll.current = false; }, 300);
+    }, [data, onValueChange]);
+
+    return (
+        <View style={{ height: ITEM_HEIGHT * VISIBLE_ITEMS, width: colWidth || 60, overflow: 'hidden' }}>
+            <ScrollView
+                ref={scrollRef}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={ITEM_HEIGHT}
+                decelerationRate="fast"
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                contentContainerStyle={{ paddingTop: ITEM_HEIGHT * paddingItems, paddingBottom: ITEM_HEIGHT * paddingItems }}
+                nestedScrollEnabled
+            >
+                {data.map((item, index) => {
+                    const isSelected = item === selectedValue;
+                    return (
+                        <Pressable key={item} onPress={() => handleTap(index)} style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+                            <Text style={{
+                                fontSize: isSelected ? 22 : 16,
+                                fontWeight: isSelected ? '700' : '400',
+                                color: isSelected ? '#0F172A' : '#94A3B8',
+                                opacity: isSelected ? 1 : 0.6
+                            }}>{item}</Text>
+                        </Pressable>
+                    );
+                })}
+            </ScrollView>
+        </View>
+    );
+};
+
+const CustomTimePickerModal = ({ visible, onClose, onSave, initialTime }) => {
+    const [hours, setHours] = useState('12');
+    const [minutes, setMinutes] = useState('00');
+    const [ampm, setAmpm] = useState('AM');
+
+    useEffect(() => {
+        if (visible && initialTime) {
+            const parts = initialTime.split(':');
+            let hr = parseInt(parts[0] || '12', 10);
+            const mn = parts[1] || '00';
+            const isPm = hr >= 12;
+            if (hr === 0) hr = 12;
+            else if (hr > 12) hr -= 12;
+            setHours(hr.toString().padStart(2, '0'));
+            setMinutes(mn);
+            setAmpm(isPm ? 'PM' : 'AM');
+        }
+    }, [visible, initialTime]);
+
+    if (!visible) return null;
+
+    const hoursData = Array.from({length: 12}, (_, i) => (i + 1).toString().padStart(2, '0'));
+    const minutesData = Array.from({length: 60}, (_, i) => i.toString().padStart(2, '0'));
+    const ampmData = ['AM', 'PM'];
+
+    const handleSave = () => {
+        let hr24 = parseInt(hours, 10);
+        if (ampm === 'PM' && hr24 !== 12) hr24 += 12;
+        if (ampm === 'AM' && hr24 === 12) hr24 = 0;
+        onSave(`${hr24.toString().padStart(2, '0')}:${minutes}`);
+    };
+
+    const pickerHeight = ITEM_HEIGHT * VISIBLE_ITEMS;
+
+    return (
+        <Modal visible transparent animationType="fade">
+            <Pressable onPress={onClose} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                <Pressable onPress={e => e.stopPropagation()} style={{ backgroundColor: '#FFF', borderRadius: 24, padding: 28, width: 310, shadowColor: '#000', shadowOffset: {width: 0, height: 16}, shadowOpacity: 0.12, shadowRadius: 32, elevation: 10 }}>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#0F172A', textAlign: 'center', marginBottom: 20 }}>Select time</Text>
+                    
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: pickerHeight, position: 'relative' }}>
+                        {/* Highlight band behind selected row */}
+                        <View pointerEvents="none" style={{ position: 'absolute', top: ITEM_HEIGHT * Math.floor(VISIBLE_ITEMS / 2), left: 16, right: 16, height: ITEM_HEIGHT, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0' }} />
+                        
+                        <WheelColumn data={hoursData} selectedValue={hours} onValueChange={setHours} width={70} />
+                        <Text style={{ fontSize: 24, fontWeight: '700', color: '#0F172A', marginHorizontal: 4 }}>:</Text>
+                        <WheelColumn data={minutesData} selectedValue={minutes} onValueChange={setMinutes} width={70} />
+                        <View style={{ width: 16 }} />
+                        <WheelColumn data={ampmData} selectedValue={ampm} onValueChange={setAmpm} width={60} />
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 28, gap: 8 }}>
+                        <Pressable onPress={onClose} style={{ paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: '#64748B' }}>Cancel</Text>
+                        </Pressable>
+                        <Pressable onPress={handleSave} style={{ backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 15, fontWeight: '600', color: '#FFF' }}>Save</Text>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Pressable>
+        </Modal>
+    );
+};
+
+const TimePill = ({ type, timeStr, timeVal }) => {
+    let IconCmp, color;
+    if (type === 'morning') { IconCmp = Sunrise; color = '#2563EB'; }
+    else if (type === 'afternoon') { IconCmp = Sun; color = '#F59E0B'; }
+    else { IconCmp = Moon; color = '#1E3A8A'; }
+
+    return (
+        <>
+            <View style={styles.timeSectionHeaderWrapper}>
+                <View style={styles.timeBadgeMinimal}>
+                    <IconCmp size={18} color={color} strokeWidth={2.5} />
+                    <Text style={[styles.timeBadgeTxt, { color, marginLeft: 8 }]}>{timeStr}</Text>
+                </View>
+                {timeVal && <Text style={styles.timeBadgeTime}>{timeVal}</Text>}
+            </View>
+            <View style={styles.timeSectionDivider} />
+        </>
     );
 };
 
 const AnimatedMedCard = ({ med, onToggle }) => {
     const [taken, setTaken] = useState(med.taken);
     const [scale] = useState(new Animated.Value(1));
+
+    useEffect(() => {
+        setTaken(med.taken);
+    }, [med.taken]);
 
     const handleCheck = async () => {
         const newVal = !taken;
@@ -69,42 +272,39 @@ const AnimatedMedCard = ({ med, onToggle }) => {
             Animated.timing(scale, { toValue: 1.1, duration: 100, useNativeDriver: true }),
             Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: true }),
         ]).start();
+        
         setTaken(newVal);
+        
         try {
             await apiService.medicines.markMedicine({ medicine_name: med.name, scheduled_time: med.type, taken: newVal });
+            if (onToggle) onToggle(med.id, newVal);
+            DeviceEventEmitter.emit('MEDS_UPDATED');
         } catch (err) {
             console.warn('Failed to mark medicine:', err.message);
-            setTaken(!newVal); // rollback
+            setTaken(!newVal);
         }
     };
 
-    let ContextIcon = Coffee;
-    if (med.type === 'afternoon') ContextIcon = Utensils;
-    if (med.type === 'night') ContextIcon = BedDouble;
+    const isTakenOpacity = taken ? 0.7 : 1;
+
+    let IconCmp = Pill;
+    if (med.type === 'afternoon') IconCmp = PillBottle;
+    if (med.type === 'night') IconCmp = Syringe;
 
     return (
-        <View style={[styles.medCard, taken && styles.medCardDimmed]}>
-            <View style={[styles.medAccentBar, { backgroundColor: med.accent }]} />
+        <View style={[styles.medCard, { opacity: isTakenOpacity }]}>
             <View style={styles.medCardInner}>
-                <View style={styles.medIconBox}>
-                    <Pill size={22} color={med.accent} strokeWidth={2.5} />
+                <View style={[styles.medIconBox, { backgroundColor: '#EFF6FF' }]}>
+                    <IconCmp size={20} color="#3B82F6" strokeWidth={2.5} />
                 </View>
-                <View style={styles.medContent}>
-                    <Text style={[styles.medTitle, taken && styles.textStrikethrough]}>{med.name}</Text>
-                    <Text style={styles.medSub}>{med.dosage}</Text>
-                    
-                    <View style={styles.medContextRow}>
-                        <ContextIcon size={12} color="#94A3B8" />
-                        <Text style={styles.medInstructions}>{med.instructions}</Text>
-                    </View>
+                <View style={styles.medContentMinimal}>
+                    <Text style={[styles.medTitleMinimal, taken && styles.textStrikethrough]}>{med.name}</Text>
+                    <Text style={styles.medSubMinimal}>{med.dosage} • {med.instructions}</Text>
                 </View>
                 <Pressable onPress={handleCheck} style={styles.checkboxTouch}>
-                    <Animated.View style={{ transform: [{ scale }] }}>
-                        {taken ? (
-                            <CheckCircle2 color={colors.success} fill="#DCFCE7" size={34} />
-                        ) : (
-                            <Circle color="#CBD5E1" size={34} />
-                        )}
+                    <Animated.View style={[{ transform: [{ scale }] }, styles.checkboxMinimal]}>
+                        {taken && <CheckCircle2 color="#3B82F6" fill="#FFF" size={24} />}
+                        {!taken && <CheckCircle2 color="#CBD5E1" size={24} />}
                     </Animated.View>
                 </Pressable>
             </View>
@@ -117,8 +317,15 @@ export default function MedicationsScreen({ navigation }) {
     const [schedule, setSchedule] = useState({ morning: [], afternoon: [], night: [] });
     const [adherence, setAdherence] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [preferences, setPreferences] = useState({ morning: '09:00', afternoon: '14:00', night: '20:00' });
+    const [showPrefModal, setShowPrefModal] = useState(false);
+    const [tempPrefs, setTempPrefs] = useState({ morning: '09:00', afternoon: '14:00', night: '20:00' });
+    const [savingPrefs, setSavingPrefs] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [activePicker, setActivePicker] = useState(null);
 
     const staggerAnims = useRef([...Array(10)].map(() => new Animated.Value(0))).current;
+    const lastFetchRef = useRef(0);
 
     const runAnimations = useCallback(() => {
         staggerAnims.forEach(anim => anim.setValue(0));
@@ -129,53 +336,142 @@ export default function MedicationsScreen({ navigation }) {
         ).start();
     }, [staggerAnims]);
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const pRes = await apiService.patients.getMe();
-                setPatient(pRes.data.patient);
+    const loadMedicinesData = useCallback(async (isRefresh = false, isBackground = false) => {
+        const now = Date.now();
+        if (!isRefresh && now - lastFetchRef.current < 60000 && adherence.length > 0) {
+            setLoading(false);
+            if (!isBackground) runAnimations();
+            return;
+        }
 
-                if (pRes.data.patient?.subscription?.plan !== 'free') {
-                    const [todayRes, weeklyRes] = await Promise.all([
-                        apiService.medicines.getToday(),
-                        apiService.medicines.getWeeklyAdherence(),
-                    ]);
+        try {
+            const pRes = await apiService.patients.getMe();
+            setPatient(pRes.data.patient);
 
-                    const medicines = todayRes.data.log?.medicines || [];
-                    const grouped = { morning: [], afternoon: [], night: [] };
-                    medicines.forEach(m => {
-                        const slot = m.scheduled_time;
-                        grouped[slot] = grouped[slot] || [];
-                        grouped[slot].push({
-                            id: `${m.medicine_name}_${slot}`,
-                            name: m.medicine_name,
-                            dosage: slot === 'morning' ? '500mg' : slot === 'afternoon' ? '5mg' : '10mg',
-                            instructions: slot === 'morning' ? 'Take with food' : slot === 'afternoon' ? 'Take after lunch' : 'Take before sleep',
-                            time: TIME_LABELS[slot],
-                            type: slot,
-                            taken: m.taken,
-                            accent: ACCENT_MAP[slot],
-                        });
+            if (pRes.data.patient?.subscription?.plan !== 'free') {
+                const [todayRes, weeklyRes] = await Promise.all([
+                    apiService.medicines.getToday(),
+                    apiService.medicines.getWeeklyAdherence(),
+                ]);
+
+                const medicines = todayRes.data.log?.medicines || [];
+                // Use backend call preferences, fallback to defaults
+                const prefs = pRes.data.patient?.medication_call_preferences || todayRes.data.preferences || { morning: '09:00', afternoon: '14:00', night: '20:00' };
+                setPreferences(prefs);
+                setTempPrefs(prefs);
+
+                const grouped = { morning: [], afternoon: [], night: [] };
+                medicines.forEach(m => {
+                    const slot = m.scheduled_time;
+                    grouped[slot] = grouped[slot] || [];
+                    grouped[slot].push({
+                        id: `${m.medicine_name}_${slot}`,
+                        name: m.medicine_name,
+                        dosage: m.dosage || (slot === 'morning' ? '500mg' : slot === 'afternoon' ? '5mg' : '10mg'),
+                        instructions: m.instructions || (slot === 'morning' ? 'Take with food' : slot === 'afternoon' ? 'Take after lunch' : 'Take before sleep'),
+                        time: prefs[slot] || TIME_LABELS[slot],
+                        type: slot,
+                        taken: m.taken,
+                        accent: ACCENT_MAP[slot],
                     });
-                    setSchedule(grouped);
+                });
+                setSchedule(grouped);
 
-                    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    const weeklyData = (weeklyRes.data.adherence || []).map(d => ({
-                        day: days[new Date(d.date).getDay()],
-                        p: d.rate,
-                        isToday: new Date(d.date).toDateString() === new Date().toDateString(),
-                    }));
-                    setAdherence(weeklyData);
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const weeklyData = (weeklyRes.data.adherence || []).map(d => ({
+                    day: days[new Date(d.date).getDay()],
+                    p: d.rate,
+                    isToday: new Date(d.date).toDateString() === new Date().toDateString(),
+                }));
+                setAdherence(weeklyData);
+                setAdherence(weeklyData);
+                if (!isRefresh && !isBackground) runAnimations();
+            }
+            lastFetchRef.current = Date.now();
+        } catch (err) {
+            console.warn('Failed to load medications:', err.message);
+        } finally {
+            setLoading(false);
+            if (isRefresh) setRefreshing(false);
+        }
+    }, [runAnimations, adherence]);
+
+    const hasAnimated = useRef(false);
+    useFocusEffect(
+        useCallback(() => {
+            loadMedicinesData(false, true).then(() => {
+                if (!hasAnimated.current) {
+                    hasAnimated.current = true;
                     runAnimations();
                 }
-            } catch (err) {
-                console.warn('Failed to load medications:', err.message);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [runAnimations]);
+            });
+            return () => {};
+        }, [loadMedicinesData, runAnimations])
+    );
 
+    useEffect(() => {
+        const medsSub = DeviceEventEmitter.addListener('MEDS_UPDATED', () => {
+            lastFetchRef.current = 0;
+            loadMedicinesData(true);
+        });
+        return () => medsSub.remove();
+    }, [loadMedicinesData]);
+
+    const handleRefresh = useCallback(() => {
+        setRefreshing(true);
+        loadMedicinesData(true);
+    }, [loadMedicinesData]);
+
+    const handleToggleMedication = useCallback((medId, isTaken) => {
+        setSchedule(prev => {
+            const newSchedule = { ...prev };
+            let total = 0;
+            let takenCount = 0;
+
+            Object.keys(newSchedule).forEach(slot => {
+                newSchedule[slot] = newSchedule[slot].map(m => {
+                    const finalTaken = m.id === medId ? isTaken : m.taken;
+                    total++;
+                    if (finalTaken) takenCount++;
+                    return m.id === medId ? { ...m, taken: isTaken } : m;
+                });
+            });
+
+            const newProgress = total > 0 ? (takenCount / total) * 100 : 0;
+            
+            setAdherence(prevAdherence => prevAdherence.map(d => 
+                d.isToday ? { ...d, p: Math.round(newProgress) } : d
+            ));
+
+            return newSchedule;
+        });
+
+        // Re-fetch weekly adherence data in background to ensure it's up to date
+        apiService.medicines.getWeeklyAdherence().then(weeklyRes => {
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const weeklyData = (weeklyRes.data.adherence || []).map(d => ({
+                day: days[new Date(d.date).getDay()],
+                p: d.rate,
+                isToday: new Date(d.date).toDateString() === new Date().toDateString(),
+            }));
+            setAdherence(weeklyData);
+        }).catch(err => console.warn('Background adherence fetch failed:', err.message));
+        
+    }, []);
+
+    const handleSavePreferences = async () => {
+        setSavingPrefs(true);
+        try {
+            await apiService.patients.updateCallPreferences(tempPrefs);
+            setShowPrefModal(false);
+            // Re-fetch to synchronize new preferences across the UI
+            loadMedicinesData(true);
+        } catch (err) {
+            Alert.alert('Error', 'Failed to save preferences');
+        } finally {
+            setSavingPrefs(false);
+        }
+    };
 
     const allMeds = [...(schedule.morning || []), ...(schedule.afternoon || []), ...(schedule.night || [])];
     const takenCount = allMeds.filter(m => m.taken).length;
@@ -217,47 +513,52 @@ export default function MedicationsScreen({ navigation }) {
                 </Animated.View>
             </View>
 
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+            <ScrollView 
+                style={styles.body} 
+                contentContainerStyle={styles.bodyContent} 
+                showsVerticalScrollIndicator={false}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6366F1" />}
+            >
                 {allMeds.length === 0 ? (
                     <Animated.View style={[styles.emptyStateContainer, { opacity: staggerAnims[1], transform: [{ scale: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }]}>
                         <View style={styles.emptyIconCircle}>
                             <Calendar size={40} color="#6366F1" strokeWidth={1.5} />
                         </View>
                         <Text style={styles.emptyTitle}>You're all clear!</Text>
-                        <Text style={styles.emptyBody}>You have no medications scheduled for today. Kick back and relax, or add a new medication below.</Text>
-                        <Pressable style={styles.emptyAddBtn} onPress={() => Alert.alert('Coming Soon', 'You will soon be able to add medications directly from this screen.')}>
-                            <Plus size={16} color="#FFF" style={{ marginRight: 6 }} />
-                            <Text style={styles.emptyAddBtnTxt}>Add Medication</Text>
+                        <Text style={styles.emptyBody}>You have no medications scheduled for today. Kick back and relax, or set your preferred call times below.</Text>
+                        <Pressable style={styles.emptyAddBtn} onPress={() => { setShowPrefModal(true); setTempPrefs(preferences); }}>
+                            <Clock size={16} color="#FFF" style={{ marginRight: 6 }} />
+                            <Text style={styles.emptyAddBtnTxt}>Set Preferences</Text>
                         </Pressable>
                     </Animated.View>
                 ) : (
                     <>
                         {/* Daily Progress Hero */}
                         <Animated.View style={{ opacity: staggerAnims[1], transform: [{ scale: staggerAnims[1].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }] }}>
-                            <View style={styles.heroCard}>
-                                <View style={styles.heroLeft}>
-                                    <Text style={styles.heroTitle}>Today's Progress</Text>
-                                    <Text style={styles.heroSub}>{takenCount} of {allMeds.length} medications taken</Text>
-                                    <View style={styles.streakBadge}>
-                                        <Activity size={12} color="#10B981" strokeWidth={3} />
-                                        <Text style={styles.streakBadgeTxt}>On track!</Text>
+                            <View style={styles.heroCardMinimal}>
+                                <View style={styles.heroLeftMinimal}>
+                                    <Text style={styles.heroTitleMinimal}>TODAY'S PROGRESS</Text>
+                                    <View style={styles.heroProgressRow}>
+                                        <Text style={styles.heroCountLarge}>{takenCount}</Text>
+                                        <Text style={styles.heroCountTotal}> / {allMeds.length}</Text>
+                                    </View>
+                                    <View style={styles.streakBadgeMinimal}>
+                                        <Text style={styles.streakBadgeTxtMinimal}>Meds taken</Text>
                                     </View>
                                 </View>
-                                <CircularProgress progress={progressPerc} size={72} strokeWidth={8} color="#6366F1" />
+                                <CircularProgress progress={progressPerc} size={76} strokeWidth={6} color="#3B82F6" />
                             </View>
                         </Animated.View>
 
                         {/* Weekly Adherence Mini Bar */}
                         <Animated.View style={{ opacity: staggerAnims[2], transform: [{ translateY: staggerAnims[2].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
-                            <View style={styles.weeklyCard}>
-                                <Text style={styles.weeklyTitle}>Weekly Adherence</Text>
+                            <View style={styles.weeklyCardMinimal}>
+                                <Text style={styles.weeklyTitleMinimal}>WEEKLY ADHERENCE</Text>
                                 <View style={styles.chartRow}>
                                     {adherence.map((d, i) => (
                                         <View key={i} style={styles.chartCol}>
-                                            <View style={styles.chartBarBg}>
-                                                <View style={[styles.chartBarFill, { height: `${d.p}%`, backgroundColor: d.p >= 75 ? '#4ADE80' : d.p > 0 ? '#FBBF24' : '#E2E8F0' }]} />
-                                            </View>
-                                            <Text style={[styles.chartDayLabel, d.isToday && styles.chartDayLabelToday]}>{d.day}</Text>
+                                            <AnimatedBar percentage={d.p} />
+                                            <Text style={styles.chartDayLabelMinimal}>{d.day.charAt(0)}</Text>
                                         </View>
                                     ))}
                                 </View>
@@ -270,9 +571,9 @@ export default function MedicationsScreen({ navigation }) {
                                 {/* Morning */}
                                 {schedule.morning.length > 0 && (
                                     <>
-                                        <TimePill type="morning" timeStr="Morning" />
+                                        <TimePill type="morning" timeStr="Morning" timeVal={preferences.morning} />
                                         {schedule.morning.map((med, idx) => (
-                                            <AnimatedMedCard key={med.id} med={med} />
+                                            <AnimatedMedCard key={med.id} med={med} onToggle={handleToggleMedication} />
                                         ))}
                                     </>
                                 )}
@@ -280,9 +581,9 @@ export default function MedicationsScreen({ navigation }) {
                                 {/* Afternoon */}
                                 {schedule.afternoon.length > 0 && (
                                     <>
-                                        <TimePill type="afternoon" timeStr="Afternoon" />
+                                        <TimePill type="afternoon" timeStr="Afternoon" timeVal={preferences.afternoon} />
                                         {schedule.afternoon.map((med, idx) => (
-                                            <AnimatedMedCard key={med.id} med={med} />
+                                            <AnimatedMedCard key={med.id} med={med} onToggle={handleToggleMedication} />
                                         ))}
                                     </>
                                 )}
@@ -290,26 +591,75 @@ export default function MedicationsScreen({ navigation }) {
                                 {/* Night */}
                                 {schedule.night.length > 0 && (
                                     <>
-                                        <TimePill type="night" timeStr="Night" />
+                                        <TimePill type="night" timeStr="Night" timeVal={preferences.night} />
                                         {schedule.night.map((med, idx) => (
-                                            <AnimatedMedCard key={med.id} med={med} />
+                                            <AnimatedMedCard key={med.id} med={med} onToggle={handleToggleMedication} />
                                         ))}
                                     </>
                                 )}
                             </View>
+                        </Animated.View>
+
+                        {/* Request Modification Button */}
+                        <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }], marginTop: 24 }}>
+                            <Pressable style={styles.requestModifyBtn} onPress={() => Alert.alert('Request Noted', 'Your request to modify medications has been noted. Our team will evaluate this and discuss it on your next call.')}>
+                                <Pencil size={18} color="#3B82F6" strokeWidth={2.5} />
+                                <Text style={styles.requestModifyTxt}>Request to Modify Medications</Text>
+                            </Pressable>
                         </Animated.View>
                     </>
                 )}
             </ScrollView>
 
             {/* Floating Action Button */}
-            <Animated.View style={[styles.fabWrapper, { opacity: staggerAnims[4], transform: [{ scale: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }] }]}>
-                <Pressable style={styles.fab} onPress={() => Alert.alert('Coming Soon', 'You will soon be able to add medications directly from this screen.')}>
-                    <LinearGradient colors={['#6366F1', '#4338CA']} style={styles.fabGradient}>
-                        <Plus size={24} color="#FFF" strokeWidth={3} />
+            <Animated.View style={[styles.fabWrapper, { opacity: staggerAnims[5], transform: [{ scale: staggerAnims[5].interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }] }]}>
+                <Pressable style={styles.fabShadow} onPress={() => { setShowPrefModal(true); setTempPrefs(preferences); setActivePicker(null); }}>
+                    <LinearGradient colors={['#60A5FA', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fabMinimal}>
+                        <Plus size={24} color="#FFF" strokeWidth={2.5} />
                     </LinearGradient>
                 </Pressable>
             </Animated.View>
+
+            {/* Preferences Modal */}
+            <Modal visible={showPrefModal} transparent animationType="slide">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Call Preferences</Text>
+                            <Pressable onPress={() => setShowPrefModal(false)}><X size={24} color="#64748B" /></Pressable>
+                        </View>
+                        <Text style={styles.modalDesc}>Set the time you prefer our team to call you for each medication slot. We'll call within 30 minutes of this time.</Text>
+                        
+                        {['morning', 'afternoon', 'night'].map(slot => (
+                            <View key={slot} style={styles.prefRow}>
+                                <Text style={styles.prefLabel}>{slot.charAt(0).toUpperCase() + slot.slice(1)}</Text>
+                                <Pressable style={styles.timeInputBox} onPress={() => setActivePicker(slot)}>
+                                    <Clock size={16} color="#94A3B8" />
+                                    <Text style={styles.timeInputTxt}>{tempPrefs[slot]}</Text>
+                                </Pressable>
+                            </View>
+                        ))}
+
+                        <Pressable onPress={handleSavePreferences} disabled={savingPrefs} style={[styles.saveBtnWrapper, savingPrefs && {opacity: 0.7}]}>
+                            <LinearGradient colors={['#3B82F6', '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.saveBtn}>
+                                {savingPrefs ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveBtnTxt}>Save Preferences</Text>}
+                            </LinearGradient>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+
+            <CustomTimePickerModal 
+                visible={!!activePicker} 
+                initialTime={activePicker ? tempPrefs[activePicker] : '12:00'} 
+                onClose={() => setActivePicker(null)} 
+                onSave={(val) => {
+                    if (activePicker) {
+                        setTempPrefs(p => ({ ...p, [activePicker]: val }));
+                    }
+                    setActivePicker(null);
+                }} 
+            />
         </LinearGradient>
     );
 
@@ -342,46 +692,64 @@ const styles = StyleSheet.create({
     upgradeTitle: { fontSize: 24, fontWeight: '800', color: '#0F172A', marginBottom: 12 },
     upgradeBody: { fontSize: 16, fontWeight: '500', color: '#64748B', textAlign: 'center', lineHeight: 24 },
 
-    // Hero Daily Progress
-    heroCard: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 24, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.04, shadowRadius: 16, elevation: 4 },
-    heroLeft: { flex: 1, paddingRight: 16 },
-    heroTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
-    heroSub: { fontSize: 14, fontWeight: '500', color: '#64748B', marginBottom: 12 },
-    streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ECFDF5', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, alignSelf: 'flex-start', gap: 6 },
-    streakBadgeTxt: { fontSize: 12, fontWeight: '700', color: '#10B981' },
+    // Hero Minimal Progress
+    heroCardMinimal: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, marginBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
+    heroLeftMinimal: { flex: 1 },
+    heroTitleMinimal: { fontSize: 11, fontWeight: '700', color: '#64748B', letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' },
+    heroProgressRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 10 },
+    heroCountLarge: { fontSize: 32, fontWeight: '800', color: '#0F172A' },
+    heroCountTotal: { fontSize: 18, fontWeight: '600', color: '#94A3B8', marginLeft: 4 },
+    streakBadgeMinimal: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+    streakBadgeTxtMinimal: { fontSize: 11, fontWeight: '600', color: '#1D4ED8' },
 
-    // Weekly Mini Card
-    weeklyCard: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 12, elevation: 2 },
-    weeklyTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 16 },
-    chartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-    chartCol: { alignItems: 'center', flex: 1 },
-    chartBarBg: { width: 12, height: 48, backgroundColor: '#F1F5F9', borderRadius: 6, overflow: 'hidden', justifyContent: 'flex-end' },
-    chartBarFill: { width: '100%', borderRadius: 6 },
-    chartDayLabel: { fontSize: 10, color: '#94A3B8', marginTop: 8, fontWeight: '700', textTransform: 'uppercase' },
-    chartDayLabelToday: { color: '#6366F1', fontWeight: '800' },
+    // Weekly Minimal Card
+    weeklyCardMinimal: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 24, marginBottom: 28, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
+    weeklyTitleMinimal: { fontSize: 11, fontWeight: '700', color: '#64748B', letterSpacing: 1, marginBottom: 20, textTransform: 'uppercase' },
+    chartRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 0 },
+    chartCol: { alignItems: 'center', width: '12%' },
+    chartBarBg: { width: '100%', height: 60, backgroundColor: 'transparent', justifyContent: 'flex-end' },
+    chartBarFill: { width: '100%', borderRadius: 0 },
+    chartDayLabelMinimal: { fontSize: 11, color: '#94A3B8', fontWeight: '600', marginTop: 8 },
 
     // Section Headers
     timelineContainer: { paddingLeft: 0, paddingRight: 0 },
-    timeSectionHeaderWrapper: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, marginTop: 4 },
-    timeBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, gap: 8 },
-    timeBadgeTxt: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeSectionHeaderWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, marginTop: 12, paddingHorizontal: 4 },
+    timeBadgeMinimal: { flexDirection: 'row', alignItems: 'center' },
+    timeBadgeTxt: { fontSize: 14, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+    timeBadgeTime: { fontSize: 13, fontWeight: '700', color: '#94A3B8', letterSpacing: 1 },
+    timeSectionDivider: { height: 1, backgroundColor: '#F1F5F9', marginBottom: 20, marginHorizontal: 4 },
 
-    // Medication Card
-    medCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, marginBottom: 16, overflow: 'hidden', shadowColor: '#6366F1', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 3, borderWidth: 1, borderColor: '#F1F5F9' },
-    medCardDimmed: { opacity: 0.6 },
-    medAccentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
-    medCardInner: { flexDirection: 'row', padding: 18, paddingLeft: 22, alignItems: 'center' },
-    medIconBox: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-    medContent: { flex: 1 },
-    medTitle: { fontSize: 17, fontWeight: '800', color: '#1E293B', marginBottom: 4 },
-    medSub: { fontSize: 14, color: '#475569', fontWeight: '700', marginBottom: 6 },
-    medContextRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    medInstructions: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+    // Medication Card Minimal
+    medCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, marginBottom: 16, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9' },
+    medCardInner: { flexDirection: 'row', padding: 20, alignItems: 'center' },
+    medIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    medContentMinimal: { flex: 1 },
+    medTitleMinimal: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+    medSubMinimal: { fontSize: 13, color: '#64748B', fontWeight: '500' },
     textStrikethrough: { textDecorationLine: 'line-through', color: '#94A3B8' },
-    checkboxTouch: { padding: 8 },
+    checkboxTouch: { padding: 4 },
+    checkboxMinimal: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF' },
 
-    // FAB
+    // FAB Minimal
     fabWrapper: { position: 'absolute', bottom: Platform.OS === 'ios' ? 110 : 100, right: 24, zIndex: 100 },
-    fab: { width: 64, height: 64, borderRadius: 32, shadowColor: '#6366F1', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
-    fabGradient: { flex: 1, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+    fabShadow: { shadowColor: '#1E3A8A', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6, borderRadius: 28, overflow: 'hidden' },
+    fabMinimal: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.4)', justifyContent: 'flex-end' },
+    modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: Platform.OS === 'ios' ? 40 : 24 },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    modalTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
+    modalDesc: { fontSize: 14, color: '#64748B', lineHeight: 20, marginBottom: 24 },
+    prefRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', padding: 16, borderRadius: 16, marginBottom: 12 },
+    prefLabel: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+    timeInputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingHorizontal: 12, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E2E8F0', width: 110, justifyContent: 'center' },
+    timeInputTxt: { fontSize: 16, fontWeight: '600', color: '#0F172A', marginLeft: 8 },
+    saveBtnWrapper: { marginTop: 12, borderRadius: 16, overflow: 'hidden' },
+    saveBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
+    saveBtnTxt: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+
+    // Request Modify
+    requestModifyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, backgroundColor: '#EFF6FF', borderRadius: 16, borderWidth: 1, borderColor: '#BFDBFE', borderStyle: 'dashed' },
+    requestModifyTxt: { fontSize: 15, fontWeight: '700', color: '#3B82F6', marginLeft: 8 },
 });

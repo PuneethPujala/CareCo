@@ -13,7 +13,10 @@ const PatientSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Profile',
             index: true,
-            required: true,
+        },
+        role: {
+            type: String,
+            default: 'patient',
         },
         name: {
             type: String,
@@ -98,6 +101,11 @@ const PatientSchema = new mongoose.Schema(
         timezone: {
             type: String,
             default: 'Europe/London',
+        },
+        medication_call_preferences: {
+            morning: { type: String, default: '09:00' },
+            afternoon: { type: String, default: '14:00' },
+            night: { type: String, default: '20:00' }
         },
         preferred_call_times: [
             {
@@ -264,6 +272,22 @@ const PatientSchema = new mongoose.Schema(
         deactivated_at: { type: Date },
         deactivated_reason: { type: String },
 
+        // ── Auth & Security ──────────────────────────────
+        emailVerified: {
+            type: Boolean,
+            default: false,
+        },
+        lastLoginAt: {
+            type: Date,
+        },
+        failedLoginAttempts: {
+            type: Number,
+            default: 0,
+        },
+        accountLockedUntil: {
+            type: Date,
+        },
+
         // ── Lifestyle & Extensions ──────────────────
         height_cm: { type: Number },
         weight_kg: { type: Number },
@@ -339,6 +363,10 @@ PatientSchema.pre('save', function (next) {
 });
 
 // ── Virtuals ──────────────────────────────────────
+PatientSchema.virtual('isLocked').get(function () {
+    return !!(this.accountLockedUntil && this.accountLockedUntil > Date.now());
+});
+
 PatientSchema.virtual('age').get(function () {
     if (!this.date_of_birth) return null;
     const diff = Date.now() - this.date_of_birth.getTime();
@@ -348,5 +376,21 @@ PatientSchema.virtual('age').get(function () {
 PatientSchema.virtual('active_medications').get(function () {
     return this.medications.filter((m) => m.is_active);
 });
+
+// ── Methods ───────────────────────────────────────
+PatientSchema.methods.incrementFailedLogin = function () {
+    this.failedLoginAttempts += 1;
+    if (this.failedLoginAttempts >= 5) {
+        this.accountLockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+    }
+    return this.save();
+};
+
+PatientSchema.methods.resetFailedLogin = function () {
+    this.failedLoginAttempts = 0;
+    this.accountLockedUntil = undefined;
+    this.lastLoginAt = new Date();
+    return this.save();
+};
 
 module.exports = mongoose.model('Patient', PatientSchema);

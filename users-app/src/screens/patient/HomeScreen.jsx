@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, TextInput, KeyboardAvoidingView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, TextInput, KeyboardAvoidingView, TouchableOpacity, DeviceEventEmitter } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
     Pill, PhoneCall, CalendarCheck, Sunrise, Sun, Moon,
     Sparkles, ChevronRight, PhoneIncoming, TrendingUp, Activity, CalendarDays, CheckCircle2, Circle, Bell,
-    Heart, Wind, Thermometer, Droplets, MapPin, AlertTriangle
+    Heart, Wind, Thermometer, Droplets, MapPin, AlertTriangle, PillBottle, Syringe
 } from 'lucide-react-native';
 import { handleAxiosError } from '../../lib/axiosInstance';
 import { colors } from '../../theme';
@@ -32,11 +32,11 @@ const TimeBadge = ({ type, timeStr }) => {
 const VitalsCard = ({ label, value, unit, icon: Icon, color, status = 'Stable' }) => {
     const isLogged = status === 'Recorded';
     return (
-        <LinearGradient
-            colors={isLogged ? ['#FFFFFF', '#F8FAFC'] : ['#FAFBFC', '#F1F5F9']}
+        <View
             style={[
                 styles.vitalsCardPremium,
-                !isLogged && { borderStyle: 'dashed', borderColor: '#CBD5E1', opacity: 0.85 },
+                { backgroundColor: isLogged ? '#FFFFFF' : '#F8FAFC' },
+                !isLogged && { borderStyle: 'dashed', borderColor: '#E2E8F0', opacity: 0.85 },
             ]}
         >
             <View style={styles.vitalsRowTop}>
@@ -68,40 +68,61 @@ const VitalsCard = ({ label, value, unit, icon: Icon, color, status = 'Stable' }
                     <Text style={[styles.trendText, { color: '#94A3B8' }]}>Tap History to log</Text>
                 </View>
             )}
-        </LinearGradient>
+        </View>
     );
 };
 
 const MedicationCard = ({ med, onCheck }) => {
+    const [taken, setTaken] = useState(med.taken);
     const [scale] = useState(new Animated.Value(1));
-    const [fade] = useState(new Animated.Value(med.taken ? 0.6 : 1));
 
-    const handlePress = () => {
+    useEffect(() => {
+        setTaken(med.taken);
+    }, [med.taken]);
+
+    const handleCheck = async () => {
+        const newVal = !taken;
         Animated.sequence([
-            Animated.timing(scale, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.9, duration: 100, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.1, duration: 100, useNativeDriver: true }),
             Animated.timing(scale, { toValue: 1, duration: 100, useNativeDriver: true }),
-        ]).start(() => {
-            onCheck(med);
-            Animated.timing(fade, { toValue: !med.taken ? 0.6 : 1, duration: 200, useNativeDriver: true }).start();
-        });
+        ]).start();
+        
+        setTaken(newVal);
+        
+        try {
+            await apiService.medicines.markMedicine({ medicine_name: med.name, scheduled_time: med.type, taken: newVal });
+            if (onCheck) onCheck(med);
+        } catch (err) {
+            console.warn('Failed to mark medicine:', err.message);
+            setTaken(!newVal);
+        }
     };
 
+    const isTakenOpacity = taken ? 0.7 : 1;
+
+    let IconCmp = Pill;
+    if (med.type === 'afternoon') IconCmp = PillBottle;
+    if (med.type === 'night') IconCmp = Syringe;
+
     return (
-        <Animated.View style={[styles.medCardContainer, { opacity: fade, transform: [{ scale }] }]}>
-            <View style={[styles.medAccentBar, { backgroundColor: med.accent }]} />
+        <View style={[styles.medCard, { opacity: isTakenOpacity }]}>
             <View style={styles.medCardInner}>
-                <View style={styles.medContent}>
-                    <TimeBadge type={med.type} timeStr={med.time} />
-                    <View style={styles.medTextGroup}>
-                        <Text style={[styles.medNameText, med.taken && styles.textStrikethrough]}>{med.name}</Text>
-                        <Text style={styles.medDosageText}>{med.dosage}</Text>
-                    </View>
+                <View style={[styles.medIconBox, { backgroundColor: '#EFF6FF' }]}>
+                    <IconCmp size={20} color="#3B82F6" strokeWidth={2.5} />
                 </View>
-                <Pressable onPress={handlePress} style={styles.checkboxTouch}>
-                    {med.taken ? <CheckCircle2 size={28} color={colors.success} fill="#DCFCE7" /> : <Circle size={28} color="#CBD5E1" />}
+                <View style={styles.medContentMinimal}>
+                    <Text style={[styles.medTitleMinimal, taken && styles.textStrikethrough]}>{med.name}</Text>
+                    <Text style={styles.medSubMinimal}>{med.dosage} {med.instructions ? `• ${med.instructions}` : ''}</Text>
+                </View>
+                <Pressable onPress={handleCheck} style={styles.checkboxTouch}>
+                    <Animated.View style={[{ transform: [{ scale }] }, styles.checkboxMinimal]}>
+                        {taken && <CheckCircle2 color="#3B82F6" fill="#FFF" size={24} />}
+                        {!taken && <CheckCircle2 color="#CBD5E1" size={24} />}
+                    </Animated.View>
                 </Pressable>
             </View>
-        </Animated.View>
+        </View>
     );
 };
 
@@ -132,7 +153,15 @@ export default function PatientHomeScreen({ navigation }) {
     }, [staggerAnims]);
 
 
-    const fetchData = useCallback(async () => {
+    const lastFetchRef = useRef(0);
+
+    const fetchData = useCallback(async (force = false) => {
+        const now = Date.now();
+        // Prevent refetching if already fetched within the last 60 seconds, unless forced
+        if (!force && now - lastFetchRef.current < 60000 && patient && vitals !== undefined && meds.length >= 0) {
+            return;
+        }
+        
         try {
             // Get patient profile (auto-seeds basic profile if new)
             const pRes = await apiService.patients.getMe();
@@ -160,19 +189,21 @@ export default function PatientHomeScreen({ navigation }) {
             const medicines = (data.log?.medicines || []).map((m) => ({
                 id: `${m.medicine_name}_${m.scheduled_time}`,
                 name: m.medicine_name,
-                dosage: m.scheduled_time === 'morning' ? '500mg' : m.scheduled_time === 'afternoon' ? '5mg' : '10mg',
+                dosage: m.dosage || (m.scheduled_time === 'morning' ? '500mg' : m.scheduled_time === 'afternoon' ? '5mg' : '10mg'),
+                instructions: m.instructions || (m.scheduled_time === 'morning' ? 'Take with food' : m.scheduled_time === 'afternoon' ? 'Take after lunch' : 'Take before sleep'),
                 time: TIME_LABELS[m.scheduled_time] || m.scheduled_time,
                 type: m.scheduled_time,
                 taken: m.taken,
                 accent: ACCENT_MAP[m.scheduled_time] || colors.accent,
             }));
             setMeds(medicines);
+            lastFetchRef.current = Date.now();
         } catch (err) {
             console.warn('Failed to fetch dashboard data:', err.message);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [patient, vitals, meds]);
 
     // ─── Submit new vitals ──────────────────────────────────────
     const handleLogVitals = async () => {
@@ -199,13 +230,29 @@ export default function PatientHomeScreen({ navigation }) {
             });
             setIsLogging(false);
             setFormValues({ heart_rate: '', systolic: '', diastolic: '', oxygen_saturation: '', hydration: '' });
-            fetchData();
+            DeviceEventEmitter.emit('VITALS_UPDATED');
+            await fetchData(true);
         } catch (err) {
             setFormError(handleAxiosError(err));
         } finally {
             setSubmitLoading(false);
         }
     };
+
+    useEffect(() => {
+        const medsSub = DeviceEventEmitter.addListener('MEDS_UPDATED', () => {
+            lastFetchRef.current = 0;
+            fetchData(true);
+        });
+        const vitalsSub = DeviceEventEmitter.addListener('VITALS_UPDATED', () => {
+            lastFetchRef.current = 0;
+            fetchData(true);
+        });
+        return () => {
+            medsSub.remove();
+            vitalsSub.remove();
+        };
+    }, [fetchData]);
 
     // Use focus effect to refresh data when returning from Vitals History/Log
     const hasAnimated = useRef(false);
@@ -227,6 +274,7 @@ export default function PatientHomeScreen({ navigation }) {
         setMeds(prev => prev.map(m => m.id === med.id ? { ...m, taken: newTaken } : m));
         try {
             await apiService.medicines.markMedicine({ medicine_name: med.name, scheduled_time: med.type, taken: newTaken });
+            DeviceEventEmitter.emit('MEDS_UPDATED');
         } catch (err) {
             console.warn('Failed to mark med:', err.message);
             setMeds(prev => prev.map(m => m.id === med.id ? { ...m, taken: !newTaken } : m));
@@ -261,7 +309,7 @@ export default function PatientHomeScreen({ navigation }) {
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-            <View style={[styles.container, { position: 'relative' }]}>
+            <LinearGradient colors={['#F8FAFC', '#EEF2FF']} style={[styles.container, { position: 'relative' }]}>
                 <View style={[styles.headerWrap, { zIndex: 10, elevation: 10 }]}>
                     <Animated.View style={[styles.minimalHeader, { opacity: staggerAnims[0], transform: [{ translateY: staggerAnims[0].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }]}>
                         {/* Location at the very top */}
@@ -436,13 +484,13 @@ export default function PatientHomeScreen({ navigation }) {
 
                 <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] }}>
                     <View style={styles.section}>
-                        <LinearGradient colors={['#EEF4FF', '#FFFFFF']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.tipCardEnhanced}>
+                        <View style={[styles.tipCardEnhanced, { backgroundColor: '#FFFFFF' }]}>
                             <View style={styles.tipTitleRow}>
                                 <View style={styles.tipIconBox}><Sparkles size={16} color="#0EA5E9" /></View>
                                 <Text style={styles.tipLabel}>DAILY HEALTH TIP</Text>
                             </View>
                             <Text style={styles.tipBodyText}>Stay hydrated! Drinking 8 glasses of water daily helps manage blood pressure and significantly improves kidney function.</Text>
-                        </LinearGradient>
+                        </View>
                     </View>
                 </Animated.View>
 
@@ -481,13 +529,13 @@ export default function PatientHomeScreen({ navigation }) {
                     </View>
                 </Animated.View>
             </ScrollView>
-            </View>
+            </LinearGradient>
         </KeyboardAvoidingView>
     );
 
 }
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FFFFFF' },
+    container: { flex: 1, backgroundColor: 'transparent' },
 
     minimalHeader: { paddingTop: Platform.OS === 'ios' ? 70 : 50, paddingHorizontal: 24, paddingBottom: 16, backgroundColor: 'transparent' },
 
@@ -561,11 +609,11 @@ const styles = StyleSheet.create({
         padding: 12,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: 'rgba(10, 36, 99, 0.15)',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 1,
-        shadowRadius: 15,
-        elevation: 6,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 10,
+        elevation: 2,
         borderWidth: 1,
         borderColor: '#F1F5F9'
     },
@@ -586,15 +634,16 @@ const styles = StyleSheet.create({
     vitalsScroll: { paddingRight: 24, gap: 16 },
     vitalsCardPremium: {
         width: 170,
-        borderRadius: 28,
+        borderRadius: 24,
         padding: 20,
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#F1F5F9',
-        shadowColor: 'rgba(10, 36, 99, 0.1)',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.8,
-        shadowRadius: 20,
-        elevation: 6,
+        shadowColor: '#0F172A',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.03,
+        shadowRadius: 10,
+        elevation: 2,
     },
     vitalsRowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
     vitalsIconBoxPremium: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -611,19 +660,17 @@ const styles = StyleSheet.create({
     trendContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     trendText: { fontSize: 11, color: '#64748B', fontWeight: '500' },
 
-    medCardContainer: { backgroundColor: '#FFFFFF', borderRadius: 18, marginBottom: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: '#F1F5F9', shadowColor: '#0A2463', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 4 },
-    medAccentBar: { position: 'absolute', top: 0, bottom: 0, left: 0, width: 6 },
-    medCardInner: { flexDirection: 'row', padding: 18, paddingLeft: 22, alignItems: 'center', justifyContent: 'space-between' },
-    medContent: { flex: 1 },
-    timeBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, marginBottom: 10 },
-    timeBadgeTxt: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-    medTextGroup: { justifyContent: 'center' },
-    medNameText: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
-    medDosageText: { fontSize: 14, color: '#64748B', marginTop: 4, fontWeight: '500' },
+    medCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 24, marginBottom: 16, overflow: 'hidden', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2, borderWidth: 1, borderColor: '#F1F5F9' },
+    medCardInner: { flexDirection: 'row', padding: 20, alignItems: 'center' },
+    medIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#F0FDFA', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    medContentMinimal: { flex: 1 },
+    medTitleMinimal: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+    medSubMinimal: { fontSize: 13, color: '#64748B', fontWeight: '500' },
     textStrikethrough: { textDecorationLine: 'line-through', color: '#94A3B8' },
     checkboxTouch: { padding: 4 },
+    checkboxMinimal: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, borderColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF' },
 
-    tipCardEnhanced: { borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E0F2FE', shadowColor: '#0EA5E9', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 3 },
+    tipCardEnhanced: { borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
     tipTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
     tipIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(14,165,233,0.1)', alignItems: 'center', justifyContent: 'center' },
     tipLabel: { fontSize: 12, fontWeight: '800', color: '#0EA5E9', letterSpacing: 1 },

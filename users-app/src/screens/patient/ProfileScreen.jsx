@@ -128,6 +128,9 @@ export default function PatientProfileScreen({ navigation }) {
                         setDobMonth(d.getMonth() + 1);
                         setDobYear(d.getFullYear());
                     }
+                    if (data.patient?.push_notifications_enabled !== undefined) setPushEnabled(data.patient.push_notifications_enabled);
+                    if (data.patient?.medication_reminders_enabled !== undefined) setMedReminders(data.patient.medication_reminders_enabled);
+
                     if (!hasAnimated.current) {
                         hasAnimated.current = true;
                         runAnimations();
@@ -154,15 +157,34 @@ export default function PatientProfileScreen({ navigation }) {
     };
 
     const handleSaveAccount = async () => {
-        if (!editName.trim()) { Alert.alert('Error', 'Name cannot be empty.'); return; }
         setSavingAccount(true);
         try {
-            await apiService.patients.updateMe({ name: editName, city: editCity });
-            setPatient(prev => ({ ...prev, city: editCity, name: editName }));
+            const { data } = await apiService.patients.updateMe({ name: editName, city: editCity });
+            setPatient(data.patient);
             setEditAccountModalVisible(false);
-            Alert.alert('Success', 'Profile updated.');
-        } catch { Alert.alert('Error', 'Failed to update profile.'); }
-        finally { setSavingAccount(false); }
+        } catch (err) {
+            Alert.alert('Error', 'Failed to update profile.');
+        } finally {
+            setSavingAccount(false);
+        }
+    };
+
+    const handleTogglePush = async (val) => {
+        setPushEnabled(val);
+        try {
+            await apiService.patients.updateMe({ push_notifications_enabled: val });
+        } catch (err) {
+            console.warn('Failed to save push pref:', err.message);
+        }
+    };
+
+    const handleToggleMedReminders = async (val) => {
+        setMedReminders(val);
+        try {
+            await apiService.patients.updateMe({ medication_reminders_enabled: val });
+        } catch (err) {
+            console.warn('Failed to save med rem pref:', err.message);
+        }
     };
 
     const handleSavePhone = async () => {
@@ -407,7 +429,7 @@ export default function PatientProfileScreen({ navigation }) {
                             <Switch
                                 trackColor={{ false: '#E2E8F0', true: '#818CF8' }}
                                 thumbColor={medReminders ? '#4338CA' : '#F8FAFC'}
-                                onValueChange={setMedReminders}
+                                onValueChange={handleToggleMedReminders}
                                 value={medReminders}
                             />
                         </View>

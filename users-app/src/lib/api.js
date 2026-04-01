@@ -152,6 +152,7 @@ export const apiService = {
         updateMedicalHistory: (data) => api.put('/users/patients/me/medical-history', data),
         updatePrimaryDoctor: (data) => api.put('/users/patients/me/primary-doctor', data),
         deleteHealthItem: (collection, id) => api.delete(`/users/patients/me/${collection}/${id}`),
+        updateCallPreferences: (data) => api.put('/users/patients/me/call-preferences', data),
         updateMe: (data) => api.put('/users/patients/me', data),
         subscribe: (data) => api.post('/users/patients/subscribe', data),
         updateEmergencyContact: (data) => api.put('/users/patients/me/emergency-contact', data),
@@ -166,6 +167,8 @@ export const apiService = {
         addTrustedContact: (data) => api.post('/users/patients/me/trusted-contacts', data),
         updateTrustedContact: (id, data) => api.put(`/users/patients/me/trusted-contacts/${id}`, data),
         deleteTrustedContact: (id) => api.delete(`/users/patients/me/trusted-contacts/${id}`),
+        getNotifications: () => api.get('/users/patients/me/notifications'),
+        markNotificationRead: (id) => api.put(`/users/patients/me/notifications/${id}/read`),
     },
 
     // Caller-specific endpoints

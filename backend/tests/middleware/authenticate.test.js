@@ -35,6 +35,12 @@ jest.mock('../../src/models/Profile', () => {
   return { findOne };
 });
 
+// ── Mock Patient model ──────────────────────────────────────────────────────
+const mockFindOnePatient = jest.fn();
+jest.mock('../../src/models/Patient', () => ({
+  findOne: jest.fn((...args) => mockFindOnePatient(...args)),
+}));
+
 // ── Mock AuditLog model ─────────────────────────────────────────────────────
 jest.mock('../../src/models/AuditLog', () => ({
   createLog: jest.fn().mockResolvedValue(true),
@@ -182,6 +188,32 @@ describe('authenticate middleware', () => {
     expect(next).toHaveBeenCalled();
     expect(req.user).toEqual({ id: 'u1' });
     expect(req.profile).toBe(profile);
+  });
+
+  test('falls back to Patient collection when no Profile exists', async () => {
+    const patient = {
+      _id: new mongoose.Types.ObjectId(),
+      supabase_uid: 'u-patient',
+      role: 'patient',
+      is_active: true,
+      isLocked: false,
+      emailVerified: true,
+      failedLoginAttempts: 0,
+      resetFailedLogin: jest.fn().mockResolvedValue(true),
+    };
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u-patient' } }, error: null });
+    mockFindOneProfile.mockReturnValue(null);      // No Profile
+    mockFindOnePatient.mockReturnValue(patient);   // Found in Patient
+
+    const req = buildReq();
+    const res = buildRes();
+    const next = jest.fn();
+
+    await authenticate(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.profile).toBe(patient);
+    expect(req.profile.role).toBe('patient');
   });
 });
 

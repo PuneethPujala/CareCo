@@ -5,6 +5,7 @@ const CallLog = require('../../models/CallLog');
 const MedicineLog = require('../../models/MedicineLog');
 const VitalLog = require('../../models/VitalLog');
 const Caller = require('../../models/Caller');
+const Notification = require('../../models/Notification');
 const { authenticate } = require('../../middleware/authenticate');
 
 const router = express.Router();
@@ -165,6 +166,15 @@ async function subscribeAndSeedDemoData(patient) {
             ],
         });
     }
+
+    // 6. Seed a persistent backend notification
+    await Notification.create({
+        patient_id: patient._id,
+        type: 'account',
+        title: 'Welcome to CareCo Premium',
+        message: 'Your premium account is now active! Priya Sharma has been assigned as your dedicated caregiver and will contact you shortly.',
+        target_screen: 'HomeScreen'
+    });
 
     console.log(`✅ Subscribed + auto-seeded demo health data for ${patient.email}`);
     return patient;
@@ -646,6 +656,49 @@ router.get('/me/medications', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/users/patients/me/notifications
+ * Patient gets all their persistent backend notifications
+ */
+router.get('/me/notifications', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        const notifications = await Notification.find({ patient_id: patient._id })
+            .sort({ created_at: -1 });
+
+        res.json({ notifications });
+    } catch (error) {
+        console.error('Get notifications error:', error);
+        res.status(500).json({ error: 'Failed to get notifications' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/notifications/:id/read
+ * Mark a persistent backend notification as read
+ */
+router.put('/me/notifications/:id/read', authenticate, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        const notification = await Notification.findOneAndUpdate(
+            { _id: req.params.id, patient_id: patient._id },
+            { $set: { is_read: true } },
+            { new: true }
+        );
+
+        if (!notification) return res.status(404).json({ error: 'Notification not found' });
+
+        res.json({ success: true, notification });
+    } catch (error) {
+        console.error('Read notification error:', error);
+        res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+});
+
+/**
  * GET /api/users/patients/me/profile
  * Returns a structured health profile
  */
@@ -862,6 +915,30 @@ router.put('/me/medications', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Update medications error:', error);
         res.status(500).json({ error: 'Failed to update medications' });
+    }
+});
+
+/**
+ * PUT /api/users/patients/me/call-preferences
+ * Update medication call times for morning/afternoon/night slots
+ */
+router.put('/me/call-preferences', authenticate, async (req, res) => {
+    try {
+        const { morning, afternoon, night } = req.body;
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
+
+        patient.medication_call_preferences = {
+            morning: morning || patient.medication_call_preferences?.morning || '09:00',
+            afternoon: afternoon || patient.medication_call_preferences?.afternoon || '14:00',
+            night: night || patient.medication_call_preferences?.night || '20:00'
+        };
+
+        await patient.save();
+        res.json({ preferences: patient.medication_call_preferences, message: 'Preferences updated successfully' });
+    } catch (error) {
+        console.error('Update call preferences error:', error);
+        res.status(500).json({ error: 'Failed to update preferences' });
     }
 });
 

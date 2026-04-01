@@ -28,12 +28,14 @@ router.get('/today', authenticate, async (req, res) => {
         if (!log && patient.medications && patient.medications.length > 0) {
             const medicines = [];
             for (const med of patient.medications) {
-                for (const time of med.times) {
-                    medicines.push({
-                        medicine_name: med.name,
-                        scheduled_time: time,
-                        taken: false,
-                    });
+                if (med.is_active !== false) {
+                    for (const time of med.times) {
+                        medicines.push({
+                            medicine_name: med.name,
+                            scheduled_time: time,
+                            taken: false,
+                        });
+                    }
                 }
             }
             log = new MedicineLog({
@@ -44,7 +46,23 @@ router.get('/today', authenticate, async (req, res) => {
             await log.save();
         }
 
-        res.json({ log: log || { medicines: [], date: today } });
+        // Attach dosage, instructions, and time preference to the log
+        const logObj = log ? log.toObject() : { medicines: [], date: today };
+        const preferences = patient.medication_call_preferences || { morning: '09:00', afternoon: '14:00', night: '20:00' };
+        
+        if (logObj.medicines) {
+            logObj.medicines = logObj.medicines.map(m => {
+                const patMed = patient.medications?.find(p => p.name === m.medicine_name);
+                return {
+                    ...m,
+                    dosage: patMed?.dosage || '',
+                    instructions: patMed?.instructions || '',
+                    preferred_time: preferences[m.scheduled_time] || ''
+                };
+            });
+        }
+        // Also send preferences directly in the response so the frontend can read/edit them
+        res.json({ log: logObj, preferences });
     } catch (error) {
         console.error('Get today medicines error:', error);
         res.status(500).json({ error: "Failed to get today's medicines" });
