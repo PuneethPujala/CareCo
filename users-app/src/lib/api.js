@@ -160,6 +160,7 @@ export const apiService = {
         getMyCalls: (params) => api.get('/users/patients/me/calls', { params }),
         getMyMedications: () => api.get('/users/patients/me/medications'),
         flagIssue: (data) => api.post('/users/patients/me/flag-issue', data),
+        requestMedicationModification: (data) => api.post('/users/patients/me/flag-issue', { type: 'medication_modification', description: data?.description || 'Patient requests medication review/modification on next call.' }),
         getPreviousCallers: () => api.get('/users/patients/me/previous-callers'),
         getVitals: (params) => api.get('/users/patients/me/vitals', { params }),
         logVitals: (data) => api.post('/users/patients/me/vitals', data),

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, ScrollView, Platform, Pressable, Animated, ActivityIndicator, Dimensions, Alert, Modal, TextInput, RefreshControl, DeviceEventEmitter } from 'react-native';
-import { Pill, Sunrise, Sun, Moon, CheckCircle2, Circle, Bell, Activity, Plus, Coffee, Utensils, BedDouble, AlertCircle, Calendar, Pencil, Clock, PillBottle, Syringe, X } from 'lucide-react-native';
+import { Pill, Sunrise, Sun, Moon, CheckCircle2, Circle, Bell, Activity, Plus, Coffee, Utensils, BedDouble, AlertCircle, Calendar, Pencil, Clock, PillBottle, Syringe, X, MessageCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle as SvgCircle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { colors } from '../../theme';
@@ -323,6 +323,8 @@ export default function MedicationsScreen({ navigation }) {
     const [savingPrefs, setSavingPrefs] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [activePicker, setActivePicker] = useState(null);
+    const [requestingMod, setRequestingMod] = useState(false);
+    const [modRequested, setModRequested] = useState(false);
 
     const staggerAnims = useRef([...Array(10)].map(() => new Animated.Value(0))).current;
     const lastFetchRef = useRef(0);
@@ -530,6 +532,40 @@ export default function MedicationsScreen({ navigation }) {
                             <Clock size={16} color="#FFF" style={{ marginRight: 6 }} />
                             <Text style={styles.emptyAddBtnTxt}>Set Preferences</Text>
                         </Pressable>
+
+                        {/* Request Modification in Empty State */}
+                        <Pressable 
+                            style={[styles.requestModifyBtn, { marginTop: 16, width: '100%' }, modRequested && { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' }]} 
+                            disabled={requestingMod || modRequested}
+                            onPress={async () => {
+                                setRequestingMod(true);
+                                try {
+                                    await apiService.patients.requestMedicationModification({ description: 'Patient requests their caller to add/review medications on next call.' });
+                                    setModRequested(true);
+                                    if (Platform.OS === 'web') window.alert('Request sent! Your caregiver will discuss medications on your next call.');
+                                    else Alert.alert('Request Sent ✓', 'Your caregiver will discuss your medications on your next call.');
+                                } catch (e) {
+                                    if (Platform.OS === 'web') window.alert('Could not send request. Please try again.');
+                                    else Alert.alert('Error', 'Could not send request. Please try again.');
+                                } finally {
+                                    setRequestingMod(false);
+                                }
+                            }}
+                        >
+                            {requestingMod ? (
+                                <ActivityIndicator size="small" color="#3B82F6" />
+                            ) : modRequested ? (
+                                <>
+                                    <CheckCircle2 size={18} color="#16A34A" strokeWidth={2.5} />
+                                    <Text style={[styles.requestModifyTxt, { color: '#16A34A' }]}>Request Sent to Caregiver</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <MessageCircle size={18} color="#3B82F6" strokeWidth={2.5} />
+                                    <Text style={styles.requestModifyTxt}>Request Caller to Add Medications</Text>
+                                </>
+                            )}
+                        </Pressable>
                     </Animated.View>
                 ) : (
                     <>
@@ -600,11 +636,38 @@ export default function MedicationsScreen({ navigation }) {
                             </View>
                         </Animated.View>
 
-                        {/* Request Modification Button */}
                         <Animated.View style={{ opacity: staggerAnims[4], transform: [{ translateY: staggerAnims[4].interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }], marginTop: 24 }}>
-                            <Pressable style={styles.requestModifyBtn} onPress={() => Alert.alert('Request Noted', 'Your request to modify medications has been noted. Our team will evaluate this and discuss it on your next call.')}>
-                                <Pencil size={18} color="#3B82F6" strokeWidth={2.5} />
-                                <Text style={styles.requestModifyTxt}>Request to Modify Medications</Text>
+                            <Pressable 
+                                style={[styles.requestModifyBtn, modRequested && { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' }]} 
+                                disabled={requestingMod || modRequested}
+                                onPress={async () => {
+                                    setRequestingMod(true);
+                                    try {
+                                        await apiService.patients.requestMedicationModification({ description: 'Patient requests medication review/modification on next call.' });
+                                        setModRequested(true);
+                                        if (Platform.OS === 'web') window.alert('Request sent! Your caregiver will discuss medications on your next call.');
+                                        else Alert.alert('Request Sent ✓', 'Your caregiver will discuss your medications on your next call.');
+                                    } catch (e) {
+                                        if (Platform.OS === 'web') window.alert('Could not send request. Please try again.');
+                                        else Alert.alert('Error', 'Could not send request. Please try again.');
+                                    } finally {
+                                        setRequestingMod(false);
+                                    }
+                                }}
+                            >
+                                {requestingMod ? (
+                                    <ActivityIndicator size="small" color="#3B82F6" />
+                                ) : modRequested ? (
+                                    <>
+                                        <CheckCircle2 size={18} color="#16A34A" strokeWidth={2.5} />
+                                        <Text style={[styles.requestModifyTxt, { color: '#16A34A' }]}>Request Sent to Caregiver</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Pencil size={18} color="#3B82F6" strokeWidth={2.5} />
+                                        <Text style={styles.requestModifyTxt}>Request to Modify Medications</Text>
+                                    </>
+                                )}
                             </Pressable>
                         </Animated.View>
                     </>

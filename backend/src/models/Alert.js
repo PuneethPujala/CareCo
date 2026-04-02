@@ -7,6 +7,7 @@ const AlertSchema = new mongoose.Schema(
             enum: [
                 'missed_call',
                 'medicine_refusal',
+                'medication_modification',
                 'unresponsive_7days',
                 'caller_performance',
                 'patient_unreachable_3attempts',

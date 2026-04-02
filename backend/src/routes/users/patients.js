@@ -59,31 +59,13 @@ async function createBasicPatient(supabaseUid, email, name, profileId, paid = 0)
     }
 }
 
-// ─── Auto-Seed Demo Health Data & Caller (Post-Subscription) ────────────────────────────
+// ─── Activate Subscription & Notify Manager (Post-Subscription) ────────────────────────────
 async function subscribeAndSeedDemoData(patient) {
     if (patient.subscription?.status === 'active') return patient; // Already subscribed
 
     const orgId = patient.organization_id || new mongoose.Types.ObjectId();
 
-    // 1. Create/Find a demo Caller
-    let caller = await Caller.findOne({ email: 'priya.sharma@careco.in' });
-    if (!caller) {
-        caller = await Caller.create({
-            name: 'Priya Sharma',
-            employee_id: `CC-${Math.floor(1000 + Math.random() * 9000)}`,
-            city: 'Hyderabad',
-            organization_id: orgId,
-            languages_spoken: ['Hindi', 'English', 'Telugu'],
-            experience_years: 3,
-            phone: '+919876543210',
-            email: 'priya.sharma@careco.in',
-            performance: { calls_this_week: 12, adherence_rate: 94, escalations: 0 },
-            is_active: true,
-        });
-    }
-
-    // 2. Update the Patient with Premium Data
-    patient.assigned_caller_id = caller._id;
+    // 1. Activate subscription — NO caller assignment, manager will assign one
     patient.subscription = {
         status: 'active',
         plan: 'basic',
@@ -95,115 +77,51 @@ async function subscribeAndSeedDemoData(patient) {
     };
     patient.profile_complete = true;
     patient.expireAt = undefined; // Remove TTL so account is kept permanently
-    patient.conditions = [
-        { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'active' },
-        { name: 'Hypertension', diagnosed_on: new Date('2020-06-10'), status: 'managed' },
-        { name: 'Osteoarthritis', diagnosed_on: new Date('2022-03-01'), status: 'active' },
-    ];
-    patient.medical_history = [
-        { event: 'Knee Replacement Surgery', date: new Date('2023-10-15'), notes: 'Right knee, successful recovery.' },
-        { event: 'Diagnosed with Type 2 Diabetes', date: new Date('2018-01-15'), notes: 'Started on Metformin protocol.' },
-        { event: 'Started BP Medication', date: new Date('2020-06-10'), notes: 'Amlodipine 5mg daily.' },
-    ];
-    patient.allergies = [
-        { name: 'Penicillin', severity: 'severe', reaction: 'Anaphylaxis' },
-        { name: 'Peanuts', severity: 'moderate', reaction: 'Hives' },
-    ];
-    patient.medications = [
-        { name: 'Metformin', dosage: '500mg', frequency: 'daily', times: ['morning'], prescribed_by: 'Dr. Reddy', instructions: 'Take with food' },
-        { name: 'Amlodipine', dosage: '5mg', frequency: 'daily', times: ['afternoon'], prescribed_by: 'Dr. Rao', instructions: 'Take after lunch' },
-        { name: 'Atorvastatin', dosage: '10mg', frequency: 'daily', times: ['night'], prescribed_by: 'Dr. Reddy', instructions: 'Take before sleep' },
-    ];
 
-    patient.vaccinations = [
-        { name: 'COVID-19 (Covishield)', date_given: new Date('2021-05-10'), next_due: null, administered_by: 'Govt. Health Centre' },
-        { name: 'Influenza', date_given: new Date('2024-10-01'), next_due: new Date('2025-10-01'), administered_by: 'Dr. Reddy' },
-    ];
-    
-    patient.appointments = [
-        {
-            title: 'Diabetes Review',
-            doctor_name: 'Dr. Reddy',
-            location: 'Apollo Hospital, Hyderabad',
-            date: new Date(Date.now() + 7 * 86400000), // 7 days from now
-            status: 'upcoming',
-        },
-        {
-            title: 'BP Follow-up',
-            doctor_name: 'Dr. Rao',
-            location: 'Care Clinic, Banjara Hills',
-            date: new Date(Date.now() + 14 * 86400000),
-            status: 'upcoming',
-        },
-    ];
-
-    patient.smoking_status = 'never';
-    patient.alcohol_use = 'none';
-    patient.exercise_frequency = 'light';
-    patient.height_cm = 165;
-    patient.weight_kg = 72;
-
-    patient.gp_name = 'Dr. Anand Reddy';
-    patient.gp_phone = '+914023456789';
-    patient.gp_email = 'dr.reddy@apollohyd.in';
+    // Provide empty containers for user to add health data
+    patient.conditions = [];
+    patient.medical_history = [];
+    patient.allergies = [];
+    patient.medications = [];
+    patient.vaccinations = [];
+    patient.appointments = [];
 
     await patient.save();
 
-    // Link patient to caller
-    caller.patient_ids = [...(caller.patient_ids || []), patient._id];
-    await caller.save();
-
-    // 3. Seed Call Logs
-    const now = new Date();
-    const today = new Date(now); today.setHours(10, 30, 0, 0);
-    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1); yesterday.setHours(10, 15, 0, 0);
-    const twoDaysAgo = new Date(now); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2); twoDaysAgo.setHours(10, 0, 0, 0);
-    const threeDaysAgo = new Date(now); threeDaysAgo.setDate(threeDaysAgo.getDate() - 3); threeDaysAgo.setHours(10, 0, 0, 0);
-
-    await CallLog.insertMany([
-        { patient_id: patient._id, caller_id: caller._id, organization_id: orgId, call_date: today, call_duration_seconds: 480, status: 'completed', ai_summary: 'Patient reported feeling better. Blood pressure normal.' },
-        { patient_id: patient._id, caller_id: caller._id, organization_id: orgId, call_date: yesterday, call_duration_seconds: 300, status: 'completed', ai_summary: 'Routine check-in. No issues reported.' },
-        { patient_id: patient._id, caller_id: caller._id, organization_id: orgId, call_date: twoDaysAgo, call_duration_seconds: 0, status: 'missed', ai_summary: 'Call was not answered. Left a message.' },
-        { patient_id: patient._id, caller_id: caller._id, organization_id: orgId, call_date: threeDaysAgo, call_duration_seconds: 0, status: 'attempted', ai_summary: 'Patient busy, requested reschedule.' },
-    ]);
-
-    // 4. Seed today's MedicineLog
-    const todayDate = new Date(); todayDate.setHours(0, 0, 0, 0);
-    await MedicineLog.create({
-        patient_id: patient._id,
-        date: todayDate,
-        medicines: [
-            { medicine_name: 'Metformin', scheduled_time: 'morning', taken: false },
-            { medicine_name: 'Amlodipine', scheduled_time: 'afternoon', taken: false },
-            { medicine_name: 'Atorvastatin', scheduled_time: 'night', taken: false },
-        ],
-    });
-
-    // 5. Seed past 6 days of MedicineLog for adherence chart
-    for (let i = 1; i <= 6; i++) {
-        const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
-        const allTaken = i % 3 !== 0; // skip every 3rd day to simulate misses
-        await MedicineLog.create({
-            patient_id: patient._id,
-            date: d,
-            medicines: [
-                { medicine_name: 'Metformin', scheduled_time: 'morning', taken: allTaken, taken_at: allTaken ? d : null },
-                { medicine_name: 'Amlodipine', scheduled_time: 'afternoon', taken: allTaken, taken_at: allTaken ? d : null },
-                { medicine_name: 'Atorvastatin', scheduled_time: 'night', taken: i % 2 === 0, taken_at: i % 2 === 0 ? d : null },
-            ],
+    // 2. Alert the organization manager to assign a caller
+    const Alert = require('../../models/Alert');
+    try {
+        // Find the org manager (Profile with role 'manager' in this org)
+        const Profile = require('../../models/Profile');
+        const manager = await Profile.findOne({
+            organization_id: orgId,
+            role: { $in: ['manager', 'admin', 'super_admin'] },
         });
+
+        await Alert.create({
+            type: 'team_lead_recommended',
+            patient_id: patient._id,
+            manager_id: manager?._id || undefined,
+            organization_id: orgId,
+            description: `New patient "${patient.name || patient.email}" has subscribed and needs a caregiver assigned.`,
+            auto_generated: true,
+            status: 'open',
+        });
+        console.log(`📋 Alert created for manager to assign caller for ${patient.email}`);
+    } catch (alertErr) {
+        console.warn('⚠️ Could not create manager alert:', alertErr.message);
     }
 
-    // 6. Seed a persistent backend notification
+    // 3. Welcome notification for the patient
     await Notification.create({
         patient_id: patient._id,
         type: 'account',
-        title: 'Welcome to CareCo Premium',
-        message: 'Your premium account is now active! Priya Sharma has been assigned as your dedicated caregiver and will contact you shortly.',
-        target_screen: 'HomeScreen'
+        title: 'Welcome to CareCo! 🎉',
+        message: 'Your account is now active. Explore the app and set up your health profile while we appoint your dedicated caregiver. You\'ll be notified once they\'re assigned!',
+        target_screen: 'HealthProfile',
     });
 
-    console.log(`✅ Subscribed + auto-seeded demo health data for ${patient.email}`);
+    console.log(`✅ Subscribed ${patient.email} — manager notified, no dummy caller assigned.`);
     return patient;
 }
 
@@ -308,7 +226,7 @@ router.get('/location/search', async (req, res) => {
  * GET /api/users/patients/me/addresses
  * Get saved addresses for the patient
  */
-router.get('/me/addresses', authenticate, async (req, res) => {
+router.get('/me/addresses', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id }).select('saved_addresses');
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -323,7 +241,7 @@ router.get('/me/addresses', authenticate, async (req, res) => {
  * POST /api/users/patients/me/addresses
  * Add a new saved address
  */
-router.post('/me/addresses', authenticate, async (req, res) => {
+router.post('/me/addresses', authenticateSession, async (req, res) => {
     try {
         const { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } = req.body;
         const patient = await Patient.findOneAndUpdate(
@@ -347,7 +265,7 @@ router.post('/me/addresses', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/addresses/:id
  * Update a saved address
  */
-router.put('/me/addresses/:id', authenticate, async (req, res) => {
+router.put('/me/addresses/:id', authenticateSession, async (req, res) => {
     try {
         const { label, title, address_line, flat_no, street, city, state, postcode, lat, lon } = req.body;
         const patient = await Patient.findOneAndUpdate(
@@ -374,7 +292,7 @@ router.put('/me/addresses/:id', authenticate, async (req, res) => {
  * DELETE /api/users/patients/me/addresses/:id
  * Delete a saved address
  */
-router.delete('/me/addresses/:id', authenticate, async (req, res) => {
+router.delete('/me/addresses/:id', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -456,13 +374,32 @@ router.put('/me', authenticateSession, async (req, res) => {
 
 /**
  * GET /api/users/patients/me/profile
- * Returns detailed health profile arrays
+ * Returns detailed health profile with nested lifestyle/gp objects for frontend
  */
 router.get('/me/profile', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient not found' });
-        res.json(patient);
+
+        const patientObj = patient.toObject();
+
+        // Reshape flat root-level fields into nested objects expected by frontend
+        patientObj.lifestyle = {
+            height_cm: patientObj.height_cm,
+            weight_kg: patientObj.weight_kg,
+            smoking_status: patientObj.smoking_status,
+            alcohol_use: patientObj.alcohol_use,
+            exercise_frequency: patientObj.exercise_frequency,
+            mobility_level: patientObj.mobility_level,
+        };
+
+        patientObj.gp = {
+            name: patientObj.gp_name,
+            phone: patientObj.gp_phone,
+            email: patientObj.gp_email,
+        };
+
+        res.json(patientObj);
     } catch (err) {
         console.error('Profile fetch error:', err);
         res.status(500).json({ error: 'Server Error' });
@@ -501,8 +438,18 @@ router.put('/me/lifestyle', authenticateSession, async (req, res) => {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient not found' });
         
-        // Convert to object if exists to avoid Mongoose doc spread issues
-        patient.lifestyle = { ...(patient.lifestyle?.toObject ? patient.lifestyle.toObject() : patient.lifestyle || {}), ...req.body };
+        const { 
+            height_cm, weight_kg, smoking_status, 
+            alcohol_use, exercise_frequency, mobility_level 
+        } = req.body;
+
+        if (height_cm !== undefined) patient.height_cm = height_cm;
+        if (weight_kg !== undefined) patient.weight_kg = weight_kg;
+        if (smoking_status !== undefined) patient.smoking_status = smoking_status;
+        if (alcohol_use !== undefined) patient.alcohol_use = alcohol_use;
+        if (exercise_frequency !== undefined) patient.exercise_frequency = exercise_frequency;
+        if (mobility_level !== undefined) patient.mobility_level = mobility_level;
+
         await patient.save();
         res.json({ message: 'Lifestyle updated', patient });
     } catch (err) {
@@ -516,7 +463,12 @@ router.put('/me/primary-doctor', authenticateSession, async (req, res) => {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient not found' });
         
-        patient.gp = { ...(patient.gp?.toObject ? patient.gp.toObject() : patient.gp || {}), ...req.body };
+        // Frontend may send as gp_name or name — handle both
+        const { gp_name, gp_phone, gp_email, name, phone, email } = req.body;
+        if (gp_name !== undefined || name !== undefined) patient.gp_name = gp_name || name;
+        if (gp_phone !== undefined || phone !== undefined) patient.gp_phone = gp_phone || phone;
+        if (gp_email !== undefined || email !== undefined) patient.gp_email = gp_email || email;
+
         await patient.save();
         res.json({ message: 'Primary doctor updated', patient });
     } catch (err) {
@@ -561,9 +513,9 @@ router.delete('/me/:collection/:id', authenticateSession, async (req, res) => {
 
 /**
  * POST /api/users/patients/subscribe
- * Subscribes a Free patient to a paid plan, assigning a Caller and seeding demo health data
+ * Subscribes a Free patient to a paid plan, notifying the manager to assign a Caller
  */
-router.post('/subscribe', authenticate, async (req, res) => {
+router.post('/subscribe', authenticateSession, async (req, res) => {
     try {
         const { paid } = req.body;
         let patient = await Patient.findOne({ supabase_uid: req.user.id });
@@ -602,7 +554,7 @@ router.post('/subscribe', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/emergency-contact
  * Patient updates their own emergency contact (only editable personal field)
  */
-router.put('/me/emergency-contact', authenticate, async (req, res) => {
+router.put('/me/emergency-contact', authenticateSession, async (req, res) => {
     try {
         const { name, phone, relation } = req.body;
         const patient = await Patient.findOneAndUpdate(
@@ -624,7 +576,7 @@ router.put('/me/emergency-contact', authenticate, async (req, res) => {
  * GET /api/users/patients/me/trusted-contacts
  * Patient gets their list of trusted contacts
  */
-router.get('/me/trusted-contacts', authenticate, async (req, res) => {
+router.get('/me/trusted-contacts', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id }).select('trusted_contacts');
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -639,7 +591,7 @@ router.get('/me/trusted-contacts', authenticate, async (req, res) => {
  * POST /api/users/patients/me/trusted-contacts
  * Patient adds a new trusted contact
  */
-router.post('/me/trusted-contacts', authenticate, async (req, res) => {
+router.post('/me/trusted-contacts', authenticateSession, async (req, res) => {
     try {
         const { name, phone, relation, email, is_primary, can_view_data, permissions } = req.body;
         const patient = await Patient.findOneAndUpdate(
@@ -663,7 +615,7 @@ router.post('/me/trusted-contacts', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/trusted-contacts/:id
  * Patient updates a trusted contact
  */
-router.put('/me/trusted-contacts/:id', authenticate, async (req, res) => {
+router.put('/me/trusted-contacts/:id', authenticateSession, async (req, res) => {
     try {
         const { name, phone, relation, email, is_primary, can_view_data, permissions } = req.body;
         const patient = await Patient.findOneAndUpdate(
@@ -693,7 +645,7 @@ router.put('/me/trusted-contacts/:id', authenticate, async (req, res) => {
  * DELETE /api/users/patients/me/trusted-contacts/:id
  * Patient deletes a trusted contact
  */
-router.delete('/me/trusted-contacts/:id', authenticate, async (req, res) => {
+router.delete('/me/trusted-contacts/:id', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -713,7 +665,7 @@ router.delete('/me/trusted-contacts/:id', authenticate, async (req, res) => {
  * GET /api/users/patients/me/caller
  * Patient gets their assigned caller's info
  */
-router.get('/me/caller', authenticate, async (req, res) => {
+router.get('/me/caller', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient || !patient.assigned_caller_id) {
@@ -738,7 +690,7 @@ router.get('/me/caller', authenticate, async (req, res) => {
  * GET /api/users/patients/me/calls
  * Patient gets their call history — caller_notes and admin_notes are STRIPPED
  */
-router.get('/me/calls', authenticate, async (req, res) => {
+router.get('/me/calls', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) {
@@ -776,7 +728,7 @@ router.get('/me/calls', authenticate, async (req, res) => {
  * GET /api/users/patients/me/medications
  * Patient gets their medication schedule
  */
-router.get('/me/medications', authenticate, async (req, res) => {
+router.get('/me/medications', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id })
             .select('medications');
@@ -794,7 +746,7 @@ router.get('/me/medications', authenticate, async (req, res) => {
  * GET /api/users/patients/me/notifications
  * Patient gets all their persistent backend notifications
  */
-router.get('/me/notifications', authenticate, async (req, res) => {
+router.get('/me/notifications', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -813,7 +765,7 @@ router.get('/me/notifications', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/notifications/:id/read
  * Mark a persistent backend notification as read
  */
-router.put('/me/notifications/:id/read', authenticate, async (req, res) => {
+router.put('/me/notifications/:id/read', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -833,207 +785,13 @@ router.put('/me/notifications/:id/read', authenticate, async (req, res) => {
     }
 });
 
-/**
- * GET /api/users/patients/me/profile
- * Returns a structured health profile
- */
-router.get('/me/profile', authenticate, async (req, res) => {
-    try {
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-        
-        const upcomingAppointments = (patient.appointments || [])
-            .filter(a => a.status === 'upcoming')
-            .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        const activeMedications = (patient.medications || []).filter(m => m.is_active !== false);
-
-        res.json({
-            conditions: patient.conditions || [],
-            allergies: patient.allergies || [],
-            medical_history: patient.medical_history || [],
-            medications: activeMedications,
-            vaccinations: patient.vaccinations || [],
-            appointments: upcomingAppointments,
-            lifestyle: {
-                smoking_status: patient.smoking_status,
-                alcohol_use: patient.alcohol_use,
-                exercise_frequency: patient.exercise_frequency,
-                height_cm: patient.height_cm,
-                weight_kg: patient.weight_kg,
-                blood_type: patient.blood_type,
-                mobility_level: patient.mobility_level,
-            },
-            gp: {
-                name: patient.gp_name,
-                phone: patient.gp_phone,
-                email: patient.gp_email,
-            },
-            age: patient.age,
-        });
-    } catch (error) {
-        console.error('Get structured profile error:', error);
-        res.status(500).json({ error: 'Failed to get profile' });
-    }
-});
-
-// DEV TEMP: Seed existing profiles with health data
-router.get('/dev/seed-health', async (req, res) => {
-    try {
-        const patients = await Patient.find();
-        for (let patient of patients) {
-            patient.date_of_birth = new Date('1950-06-15');
-            patient.conditions = [
-                { name: 'Type 2 Diabetes', diagnosed_on: new Date('2018-01-15'), status: 'managed', severity: 'moderate' },
-                { name: 'Hypertension', diagnosed_on: new Date('2020-03-10'), status: 'active', severity: 'moderate' }
-            ];
-            patient.allergies = [
-                { name: 'Penicillin', severity: 'severe', reaction: 'Anaphylaxis' },
-                { name: 'Peanuts', severity: 'moderate', reaction: 'Hives' }
-            ];
-            patient.vaccinations = [
-                { name: 'COVID-19 (Covishield)', date_given: new Date('2021-05-10'), next_due: null, administered_by: 'Govt. Health Centre' },
-                { name: 'Influenza', date_given: new Date('2024-10-01'), next_due: new Date('2025-10-01'), administered_by: 'Dr. Reddy' },
-            ];
-            patient.appointments = [
-                { title: 'Diabetes Review', doctor_name: 'Dr. Reddy', location: 'Apollo Hospital', date: new Date(Date.now() + 7 * 86400000), status: 'upcoming' }
-            ];
-            patient.smoking_status = 'never';
-            patient.alcohol_use = 'none';
-            patient.exercise_frequency = 'light';
-            patient.height_cm = 165;
-            patient.weight_kg = 72;
-            patient.gp_name = 'Dr. Anand Reddy';
-            patient.gp_phone = '+914023456789';
-            patient.gp_email = 'dr.reddy@apollohyd.in';
-            await patient.save();
-        }
-        res.json({ message: 'Seeded successfully' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/conditions
- * Add or update a condition
- */
-router.put('/me/conditions', authenticate, async (req, res) => {
-    try {
-        const { _id, name, diagnosed_on, status, severity, notes } = req.body;
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-
-        if (_id) {
-            const item = patient.conditions.id(_id);
-            if (item) item.set({ name, diagnosed_on, status, severity, notes });
-        } else {
-            patient.conditions.push({ name, diagnosed_on, status, severity, notes });
-        }
-        await patient.save();
-        res.json({ conditions: patient.conditions });
-    } catch (error) {
-        console.error('Update conditions error:', error);
-        res.status(500).json({ error: 'Failed to update conditions' });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/allergies
- * Add or update an allergy
- */
-router.put('/me/allergies', authenticate, async (req, res) => {
-    try {
-        const { _id, name, severity, reaction } = req.body;
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-
-        if (_id) {
-            const item = patient.allergies.id(_id);
-            if (item) item.set({ name, severity, reaction });
-        } else {
-            patient.allergies.push({ name, severity, reaction });
-        }
-        await patient.save();
-        res.json({ allergies: patient.allergies });
-    } catch (error) {
-        console.error('Update allergies error:', error);
-        res.status(500).json({ error: 'Failed to update allergies' });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/appointments
- * Add or update an appointment
- */
-router.put('/me/appointments', authenticate, async (req, res) => {
-    try {
-        const { _id, title, doctor_name, location, date, status, notes } = req.body;
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-
-        if (_id) {
-            const item = patient.appointments.id(_id);
-            if (item) item.set({ title, doctor_name, location, date, status, notes });
-        } else {
-            patient.appointments.push({ title, doctor_name, location, date, status: status || 'upcoming', notes });
-        }
-        await patient.save();
-        res.json({ appointments: patient.appointments });
-    } catch (error) {
-        console.error('Update appointments error:', error);
-        res.status(500).json({ error: 'Failed to update appointments' });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/vaccinations
- * Add or update a vaccination
- */
-router.put('/me/vaccinations', authenticate, async (req, res) => {
-    try {
-        const { _id, name, date_given, next_due, administered_by } = req.body;
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-
-        if (_id) {
-            const item = patient.vaccinations.id(_id);
-            if (item) item.set({ name, date_given, next_due, administered_by });
-        } else {
-            patient.vaccinations.push({ name, date_given, next_due, administered_by });
-        }
-        await patient.save();
-        res.json({ vaccinations: patient.vaccinations });
-    } catch (error) {
-        console.error('Update vaccinations error:', error);
-        res.status(500).json({ error: 'Failed to update vaccinations' });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/lifestyle
- * Update lifestyle info
- */
-router.put('/me/lifestyle', authenticate, async (req, res) => {
-    try {
-        const { smoking_status, alcohol_use, exercise_frequency, height_cm, weight_kg, blood_type, mobility_level } = req.body;
-        const patient = await Patient.findOneAndUpdate(
-            { supabase_uid: req.user.id },
-            { $set: { smoking_status, alcohol_use, exercise_frequency, height_cm, weight_kg, blood_type, mobility_level } },
-            { new: true }
-        );
-        res.json({ message: 'Lifestyle updated successfully' });
-    } catch (error) {
-        console.error('Update lifestyle error:', error);
-        res.status(500).json({ error: 'Failed to update lifestyle' });
-    }
-});
 
 /**
  * PUT /api/users/patients/me/medications
  * Add or update a medication
  */
-router.put('/me/medications', authenticate, async (req, res) => {
+router.put('/me/medications', authenticateSession, async (req, res) => {
     try {
         const { _id, name, dosage, frequency, times, start_date, end_date, is_active, instructions, prescribed_by } = req.body;
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
@@ -1057,7 +815,7 @@ router.put('/me/medications', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/call-preferences
  * Update medication call times for morning/afternoon/night slots
  */
-router.put('/me/call-preferences', authenticate, async (req, res) => {
+router.put('/me/call-preferences', authenticateSession, async (req, res) => {
     try {
         const { morning, afternoon, night } = req.body;
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
@@ -1081,50 +839,11 @@ router.put('/me/call-preferences', authenticate, async (req, res) => {
  * PUT /api/users/patients/me/medical-history
  * Add or update a medical history event
  */
-router.put('/me/medical-history', authenticate, async (req, res) => {
-    try {
-        const { _id, event, date, notes } = req.body;
-        const patient = await Patient.findOne({ supabase_uid: req.user.id });
-        if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
-
-        if (_id) {
-            const item = patient.medical_history.id(_id);
-            if (item) item.set({ event, date, notes });
-        } else {
-            patient.medical_history.push({ event, date, notes });
-        }
-        await patient.save();
-        res.json({ medical_history: patient.medical_history });
-    } catch (error) {
-        console.error('Update medical history error:', error);
-        res.status(500).json({ error: 'Failed to update medical history' });
-    }
-});
-
-/**
- * PUT /api/users/patients/me/primary-doctor
- * Update Primary Doctor details
- */
-router.put('/me/primary-doctor', authenticate, async (req, res) => {
-    try {
-        const { gp_name, gp_phone, gp_email } = req.body;
-        const patient = await Patient.findOneAndUpdate(
-            { supabase_uid: req.user.id },
-            { $set: { gp_name, gp_phone, gp_email } },
-            { new: true }
-        );
-        res.json({ message: 'Primary Doctor updated successfully' });
-    } catch (error) {
-        console.error('Update primary doctor error:', error);
-        res.status(500).json({ error: 'Failed to update primary doctor' });
-    }
-});
-
 /**
  * POST /api/users/patients/me/flag-issue
  * Patient flags a missed call or complaint
  */
-router.post('/me/flag-issue', authenticate, async (req, res) => {
+router.post('/me/flag-issue', authenticateSession, async (req, res) => {
     try {
         const { type, description } = req.body;
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
@@ -1158,7 +877,7 @@ router.post('/me/flag-issue', authenticate, async (req, res) => {
  * Log new vitals for a specific date (or today).
  * Uses the updated VitalLog schema (oxygen_saturation, hydration as %).
  */
-router.post('/me/vitals', authenticate, async (req, res) => {
+router.post('/me/vitals', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -1192,7 +911,7 @@ router.post('/me/vitals', authenticate, async (req, res) => {
  * GET /api/users/patients/me/vitals
  * Fetch vitals history with optional start_date and end_date queries
  */
-router.get('/me/vitals', authenticate, async (req, res) => {
+router.get('/me/vitals', authenticateSession, async (req, res) => {
     try {
         const patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) return res.status(404).json({ error: 'Patient profile not found' });
@@ -1233,7 +952,7 @@ router.get('/me/vitals', authenticate, async (req, res) => {
  * DELETE /api/users/patients/me/:collection/:id
  * Generic delete route for any array collections (conditions, allergies, etc.)
  */
-router.delete('/me/:collection/:id', authenticate, async (req, res) => {
+router.delete('/me/:collection/:id', authenticateSession, async (req, res) => {
     try {
         const { collection, id } = req.params;
         const validCollections = ['conditions', 'allergies', 'appointments', 'vaccinations', 'medications', 'medical_history'];
