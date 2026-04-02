@@ -6,30 +6,57 @@ const MedicineLog = require('../../models/MedicineLog');
 const VitalLog = require('../../models/VitalLog');
 const Caller = require('../../models/Caller');
 const Notification = require('../../models/Notification');
-const { authenticate } = require('../../middleware/authenticate');
+const { authenticate, authenticateSession } = require('../../middleware/authenticate');
 
 const router = express.Router();
 
 // ─── Auto-Seed Basic Profile ────────────────────────────
 async function createBasicPatient(supabaseUid, email, name, profileId, paid = 0) {
-    const orgId = new mongoose.Types.ObjectId();
-    const patient = await Patient.create({
-        supabase_uid: supabaseUid,
-        profile_id: profileId,
-        name: name || email.split('@')[0],
-        email,
-        city: 'Hyderabad', // Mock default city picked during signup
-        organization_id: orgId,
-        subscription: { status: paid === 1 ? 'active' : 'pending_payment', plan: 'basic' },
-        paid,
-        profile_complete: false,
-        conditions: [],
-        medical_history: [],
-        allergies: [],
-        medications: []
-    });
-    console.log(`✅ Auto-seeded basic profile for ${email} (paid: ${paid})`);
-    return patient;
+    try {
+        const orgId = new mongoose.Types.ObjectId();
+        const patientData = {
+            supabase_uid: supabaseUid,
+            profile_id: profileId,
+            name: name || (email ? email.split('@')[0] : 'Patient'),
+            email: email || `${supabaseUid}@phone.careco.in`,
+            city: 'Hyderabad', // Mock default city picked during signup
+            organization_id: orgId,
+            subscription: { 
+                status: paid === 1 ? 'active' : 'pending_payment', 
+                plan: 'basic' 
+            },
+            paid: paid,
+            emailVerified: true, // Auto-verified since they come from Supabase Auth
+            profile_complete: false,
+            role: 'patient',
+            conditions: [],
+            medical_history: [],
+            allergies: [],
+            medications: []
+        };
+
+        const patient = await Patient.create(patientData);
+        console.log(`✅ Auto-seeded basic profile for ${email} (paid: ${paid})`);
+        return patient;
+    } catch (err) {
+        // Handle duplicate key error (11000) - possible race condition or recreated Supabase account
+        if (err.code === 11000) {
+            console.log(`ℹ️ Patient already exists or conflict for ${email}, attempting to re-fetch.`);
+            const existing = await Patient.findOne({ 
+                $or: [{ supabase_uid: supabaseUid }, { email: email.toLowerCase() }] 
+            });
+            if (existing) {
+                // Auto-heal the supabase_uid if it was recreated in Supabase but their MongoDB record remained
+                if (existing.supabase_uid !== supabaseUid) {
+                    console.log(`[Auto-heal] Updating stale supabase_uid for patient ${email}`);
+                    existing.supabase_uid = supabaseUid;
+                    await existing.save();
+                }
+                return existing;
+            }
+        }
+        throw err;
+    }
 }
 
 // ─── Auto-Seed Demo Health Data & Caller (Post-Subscription) ────────────────────────────
@@ -370,7 +397,7 @@ router.delete('/me/addresses/:id', authenticate, async (req, res) => {
  * GET /api/users/patients/me
  * Patient reads their own profile — auto-seeds basic Free profile on first visit
  */
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', authenticateSession, async (req, res) => {
     try {
         let patient = await Patient.findOne({ supabase_uid: req.user.id });
         if (!patient) {
@@ -379,11 +406,12 @@ router.get('/me', authenticate, async (req, res) => {
                     req.user.id,
                     req.user.email,
                     req.user.user_metadata?.full_name || req.user.user_metadata?.name,
-                    req.profile._id
+                    req.profile ? req.profile._id : undefined
                 );
             } catch (seedErr) {
                 console.error('Auto-seed error:', seedErr);
-                return res.status(404).json({ error: 'Patient profile not found' });
+                // Return 500 instead of 404 to correctly indicate an internal server error
+                return res.status(500).json({ error: 'Failed to auto-seed patient profile', details: seedErr.message || String(seedErr) });
             }
         }
         res.json({ patient });
@@ -397,7 +425,7 @@ router.get('/me', authenticate, async (req, res) => {
  * PUT /api/users/patients/me
  * Update basic patient profile details (city, name)
  */
-router.put('/me', authenticate, async (req, res) => {
+router.put('/me', authenticateSession, async (req, res) => {
     try {
         const { name, city, date_of_birth, phone, gender, blood_type, language, push_notifications_enabled, medication_reminders_enabled } = req.body;
         const updates = {};
@@ -421,6 +449,113 @@ router.put('/me', authenticate, async (req, res) => {
     } catch (error) {
         console.error('Update patient profile error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// --- HEALTH PROFILE ENDPOINTS ---
+
+/**
+ * GET /api/users/patients/me/profile
+ * Returns detailed health profile arrays
+ */
+router.get('/me/profile', authenticateSession, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        res.json(patient);
+    } catch (err) {
+        console.error('Profile fetch error:', err);
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+const updateProfileArray = (field) => async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        
+        if (req.body._id) {
+            const item = patient[field].id(req.body._id);
+            if (item) Object.assign(item, req.body);
+            else return res.status(404).json({ error: 'Item not found' });
+        } else {
+            patient[field].push(req.body);
+        }
+        await patient.save();
+        res.json({ message: `${field} updated`, patient });
+    } catch (err) {
+        console.error(`Update ${field} error:`, err);
+        res.status(500).json({ error: 'Server Error' });
+    }
+};
+
+router.put('/me/conditions', authenticateSession, updateProfileArray('conditions'));
+router.put('/me/allergies', authenticateSession, updateProfileArray('allergies'));
+router.put('/me/vaccinations', authenticateSession, updateProfileArray('vaccinations'));
+router.put('/me/appointments', authenticateSession, updateProfileArray('appointments'));
+router.put('/me/medications', authenticateSession, updateProfileArray('medications'));
+router.put('/me/medical-history', authenticateSession, updateProfileArray('medical_history'));
+
+router.put('/me/lifestyle', authenticateSession, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        
+        // Convert to object if exists to avoid Mongoose doc spread issues
+        patient.lifestyle = { ...(patient.lifestyle?.toObject ? patient.lifestyle.toObject() : patient.lifestyle || {}), ...req.body };
+        await patient.save();
+        res.json({ message: 'Lifestyle updated', patient });
+    } catch (err) {
+        console.error('Update lifestyle error:', err);
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.put('/me/primary-doctor', authenticateSession, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        
+        patient.gp = { ...(patient.gp?.toObject ? patient.gp.toObject() : patient.gp || {}), ...req.body };
+        await patient.save();
+        res.json({ message: 'Primary doctor updated', patient });
+    } catch (err) {
+        console.error('Update gp error:', err);
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.delete('/me/:collection/:id', authenticateSession, async (req, res) => {
+    try {
+        const patient = await Patient.findOne({ supabase_uid: req.user.id });
+        if (!patient) return res.status(404).json({ error: 'Patient not found' });
+        
+        const { collection, id } = req.params;
+        let dbCollection = collection;
+        if (collection === 'medical-history' || collection === 'history') dbCollection = 'medical_history';
+        if (collection === 'allergy') dbCollection = 'allergies';
+        if (collection === 'condition') dbCollection = 'conditions';
+        if (collection === 'medication') dbCollection = 'medications';
+        if (collection === 'vaccination') dbCollection = 'vaccinations';
+        if (collection === 'appointment') dbCollection = 'appointments';
+        
+        const validCollections = ['conditions', 'allergies', 'medical_history', 'medications', 'vaccinations', 'appointments'];
+        
+        if (!validCollections.includes(dbCollection)) {
+            return res.status(400).json({ error: `Invalid collection: ${collection}` });
+        }
+
+        const item = patient[dbCollection].id(id);
+        if (item) {
+            patient[dbCollection].pull(id);
+            await patient.save();
+            res.json({ message: 'Item deleted' });
+        } else {
+            res.status(404).json({ error: 'Item not found' });
+        }
+    } catch (err) {
+        console.error('Delete error:', err);
+        res.status(500).json({ error: 'Server Error' });
     }
 });
 

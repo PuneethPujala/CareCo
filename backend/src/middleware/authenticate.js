@@ -128,8 +128,9 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // All roles except super_admin require verified email
-        if (profile.role !== 'super_admin' && !profile.emailVerified) {
+        // All staff roles except super_admin require verified email
+        // Patients skip this check — their email is confirmed via Supabase at registration
+        if (profile.role !== 'super_admin' && profile.role !== 'patient' && !profile.emailVerified) {
             return res.status(403).json({
                 error: 'Email verification required',
                 code: 'EMAIL_NOT_VERIFIED',
@@ -238,7 +239,7 @@ const optionalAuthenticate = async (req, res, next) => {
         }
 
         if (profile && !profile.isLocked &&
-            (profile.role === 'super_admin' || profile.emailVerified)) {
+            (profile.role === 'super_admin' || profile.role === 'patient' || profile.emailVerified)) {
             req.user = user;
             req.profile = profile;
         }
@@ -247,6 +248,55 @@ const optionalAuthenticate = async (req, res, next) => {
     } catch (err) {
         console.error('Optional authentication error:', err);
         next();
+    }
+};
+
+/**
+ * authenticateSession
+ * Only verifies the Supabase token and attaches req.user.
+ * Does NOT require a MongoDB profile/patient to exist.
+ */
+const authenticateSession = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader?.startsWith('Bearer ')) {
+            return res.status(401).json({
+                error: 'Missing or invalid Authorization header',
+                code: 'MISSING_AUTH_HEADER',
+            });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+            return res.status(401).json({
+                error: 'Invalid or expired token',
+                code: 'INVALID_TOKEN',
+            });
+        }
+
+        // Attach user and try to find profile, but don't fail if missing
+        req.user = user;
+
+        let profile = await Profile.findOne({
+            supabaseUid: user.id,
+            isActive: true,
+        }).populate('organizationId', 'name city');
+
+        if (!profile) {
+            let patient = await Patient.findOne({
+                supabase_uid: user.id,
+                is_active: true,
+            });
+            if (patient) profile = patient;
+        }
+
+        req.profile = profile; // May be null
+        next();
+    } catch (err) {
+        console.error('Session authentication error:', err);
+        return res.status(500).json({ error: 'Authentication error' });
     }
 };
 
@@ -320,6 +370,7 @@ const requireOwnership = (resourceIdParam = 'id') => {
 module.exports = {
     authenticate,
     optionalAuthenticate,
+    authenticateSession,
     requireRole,
     requireOrganization,
     requireOwnership,
