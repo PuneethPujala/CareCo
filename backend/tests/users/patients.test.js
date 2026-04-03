@@ -33,6 +33,12 @@ jest.mock('../../src/middleware/authenticate', () => ({
         req.profile = { _id: mockAuthState.profileId };
         next();
     },
+    authenticateSession: (req, res, next) => {
+        if (mockAuthState.rejectAuth) return res.status(401).json({ error: 'Unauthorized' });
+        req.user    = { id: mockAuthState.userId, email: mockAuthState.email };
+        req.profile = { _id: mockAuthState.profileId };
+        next();
+    },
     requireRole: () => (req, res, next) => next(),
 }));
 
@@ -176,14 +182,14 @@ describe('User Patients Routes', () => {
             expect(Patient.create).toHaveBeenCalled();
         });
 
-        it('returns 404 when auto-seed fails', async () => {
+        it('returns 500 when auto-seed fails', async () => {
             Patient.findOne = jest.fn().mockResolvedValue(null);
             Patient.create  = jest.fn().mockRejectedValue(new Error('Seed failed'));
 
             const res = await request(app).get('/api/users/patients/me');
 
-            expect(res.status).toBe(404);
-            expect(res.body.error).toBe('Patient profile not found');
+            expect(res.status).toBe(500);
+            expect(res.body.error).toBe('Failed to auto-seed patient profile');
         });
 
         it('returns 500 on unexpected error', async () => {

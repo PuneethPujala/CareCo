@@ -86,18 +86,22 @@ async function subscribeAndSeedDemoData(patient) {
     patient.vaccinations = [];
     patient.appointments = [];
 
+    // Find the org manager (Profile with role 'manager' in this org)
+    const Profile = require('../../models/Profile');
+    const manager = await Profile.findOne({
+        organization_id: orgId,
+        role: { $in: ['manager', 'admin', 'super_admin'] },
+    });
+
+    if (manager) {
+        patient.assigned_manager_id = manager._id;
+    }
+
     await patient.save();
 
     // 2. Alert the organization manager to assign a caller
     const Alert = require('../../models/Alert');
     try {
-        // Find the org manager (Profile with role 'manager' in this org)
-        const Profile = require('../../models/Profile');
-        const manager = await Profile.findOne({
-            organization_id: orgId,
-            role: { $in: ['manager', 'admin', 'super_admin'] },
-        });
-
         await Alert.create({
             type: 'team_lead_recommended',
             patient_id: patient._id,

@@ -77,6 +77,14 @@ jest.mock('../src/middleware/authenticate', () => ({
         req.profile = mockAuthState.profile;
         next();
     },
+    authenticateSession: (req, res, next) => {
+        if (mockAuthState.rejectAuth) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        req.user    = mockAuthState.user;
+        req.profile = mockAuthState.profile;
+        next();
+    },
     requireRole: () => (req, res, next) => next(),
 }));
 

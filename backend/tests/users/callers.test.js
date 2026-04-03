@@ -20,6 +20,11 @@ jest.mock('../../src/middleware/authenticate', () => ({
         req.user = { id: 'sup-uid-caller' };
         next();
     },
+    authenticateSession: (req, res, next) => {
+        if (mockAuthState.rejectAuth) return res.status(401).json({ error: 'Unauthorized' });
+        req.user = { id: 'sup-uid-caller' };
+        next();
+    },
     requireRole: () => (req, res, next) => next(),
 }));
 

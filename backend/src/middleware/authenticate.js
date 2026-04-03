@@ -96,6 +96,8 @@ const authenticate = async (req, res, next) => {
 
             if (patient) {
                 profile = patient; // attach Patient doc as req.profile
+                // Normalize organization field for middleware consistency
+                profile.organizationId = patient.organization_id;
             }
         }
 
@@ -235,6 +237,8 @@ const optionalAuthenticate = async (req, res, next) => {
             }
             if (patient) {
                 profile = patient;
+                // Normalize organization field for middleware consistency
+                profile.organizationId = patient.organization_id;
             }
         }
 
@@ -289,7 +293,11 @@ const authenticateSession = async (req, res, next) => {
                 supabase_uid: user.id,
                 is_active: true,
             });
-            if (patient) profile = patient;
+            if (patient) {
+                profile = patient;
+                // Normalize organization field for middleware consistency
+                profile.organizationId = patient.organization_id;
+            }
         }
 
         req.profile = profile; // May be null
